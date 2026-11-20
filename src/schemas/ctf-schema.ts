@@ -46,6 +46,23 @@ export const submissionsSchema: CollectionSchema = {
   },
 }
 
+// A private, unique slot claim makes the per-user/per-challenge attempt limit
+// safe when several submissions arrive at once. The minute bucket bounds the
+// uniqueness key; timestamps let the action enforce a rolling 60-second window.
+export const attemptClaimsSchema: CollectionSchema = {
+  name: 'attemptClaims',
+  columns: [
+    { name: 'userId', storage: 'text', interpretation: 'plain', userBound: true, required: true },
+    { name: 'challengeId', storage: 'text', interpretation: 'plain', required: true },
+    { name: 'bucket', storage: 'number', interpretation: 'plain', required: true },
+    { name: 'slot', storage: 'number', interpretation: 'plain', required: true },
+    { name: 'ts', storage: 'text', interpretation: 'datetime', required: true },
+  ],
+  uniqueOn: ['userId', 'challengeId', 'bucket', 'slot'],
+  ownerField: 'userId',
+  permissions: { viewer: closed, player: closed, admin: closed },
+}
+
 export const solvesSchema: CollectionSchema = {
   name: 'solves',
   columns: [
