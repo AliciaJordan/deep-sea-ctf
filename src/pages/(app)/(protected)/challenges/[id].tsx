@@ -39,11 +39,15 @@ export default function ChallengePage() {
 
   return <main className="ctf-shell ctf-detail">
     <DepthGauge />
-    <Link className="ctf-back" to="/home">← BOARD</Link>
+    <div className="detail-nav"><Link className="ctf-back" to="/home">← BOARD</Link><Link className="ctf-back" to="/scoreboard">SCOREBOARD</Link></div>
     {challenge ? <>
       <p className="ctf-label detail-depth"><DepthRing />{challenge.category} / DEPTH {depths[challenge.difficulty]}</p>
       <h1>{challenge.title}</h1>
-      <p className="ctf-description">{challenge.description}</p>
+      <p className="ctf-description">{challenge.description.split(/(\/(?:challenges|files)\/[a-z0-9._-]+)/g).map((part, index) =>
+        /^\/(?:challenges|files)\/[a-z0-9._-]+$/.test(part)
+          ? <a key={`${part}-${index}`} href={part} target="_blank" rel="noreferrer">{part}</a>
+          : part,
+      )}</p>
       <p className="ctf-data">{challenge.points} POINTS</p>
       <form className="ctf-form" onSubmit={submit}>
         <label className="ctf-label" htmlFor="flag">FLAG</label>

@@ -1,0 +1,1 @@
+Read the measurements by sample number. The signal is in the least significant bit of each height; pack bits most-significant first.

@@ -7,7 +7,7 @@ export const usersSchema: CollectionSchema = {
     : column),
   permissions: {
     viewer: { read: 'own', create: false, update: 'own', delete: false },
-    player: { read: 'own', create: false, update: 'own', delete: false },
+    player: { read: 'own', create: false, update: false, delete: false },
     member: { read: 'own', create: false, update: 'own', delete: false },
     admin: { read: true, create: false, update: true, delete: true },
   },

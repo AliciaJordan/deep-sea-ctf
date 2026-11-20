@@ -1,0 +1,1 @@
+The short and long whale calls speak Morse. Decode each group as one character; the message is the body inside the ocean{...} flag wrapper.

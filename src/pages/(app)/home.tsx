@@ -1,8 +1,10 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+/* home pattern: data-forward — the live challenge board and solve activity are the primary surface */
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery, useUsers } from 'deepspace'
 import { callCtfAction } from '../../lib/ctf-actions'
-import { ContourPattern, DepthGauge, DepthRing } from '../../components/DepthRing'
+import { DepthGauge, DepthRing } from '../../components/DepthRing'
+import { ScoreboardTable } from '../../components/ScoreboardTable'
 import { tallySolves } from '../../lib/solve-scoring'
 
 type Challenge = { challengeId: string; title: string; category: string; difficulty: number; points: number; description: string }
@@ -21,10 +23,11 @@ function stableAngle(id: string): number {
   return (hash >>> 0) / 4294967296 * 360
 }
 
-function SonarScope({ challenges, solvedIds, bloomIds }: {
+function SonarScope({ challenges, solvedIds, bloomIds, scanCycle }: {
   challenges: Challenge[]
   solvedIds: Set<string>
   bloomIds: Set<string>
+  scanCycle: number
 }) {
   const ringRadii = [0, 58, 124, 190, 256]
   return <svg className="sonar-scope" viewBox="0 0 600 600" role="group" aria-label="Sonar scope of released challenges">
@@ -38,7 +41,7 @@ function SonarScope({ challenges, solvedIds, bloomIds }: {
       <path d="M20 300H580M300 20V580" />
       <circle cx="300" cy="300" r="3" />
     </g>
-    <line className="scope-sweep" x1="300" y1="300" x2="300" y2="20" />
+    <line key={scanCycle} className="scope-sweep" x1="300" y1="300" x2="300" y2="20" />
     {challenges.map((challenge) => {
       const angle = stableAngle(challenge.challengeId)
       const radius = ringRadii[challenge.difficulty] ?? ringRadii[1]
@@ -72,23 +75,63 @@ function SonarScope({ challenges, solvedIds, bloomIds }: {
   </svg>
 }
 
+function SignalState({ state, detail }: { state: 'loading' | 'empty' | 'error'; detail?: string }) {
+  const copy = {
+    loading: ['SCANNING FOR CONTACTS', 'Reading the released challenge field.'],
+    empty: ['NO CONTACTS YET', 'New signals appear here when challenges are released.'],
+    error: ['SIGNAL UNAVAILABLE', detail || 'The board could not be reached. Try again shortly.'],
+  } as const
+  return (
+    <div className={`signal-state signal-state--${state}`} role={state === 'error' ? 'alert' : 'status'}>
+      <DepthRing state={state === 'loading' ? 'loading' : undefined} />
+      <div>
+        <p className="ctf-label signal-state-title">{copy[state][0]}</p>
+        <p className="signal-state-copy">{copy[state][1]}</p>
+      </div>
+    </div>
+  )
+}
+
 export default function HomePage() {
   const [challenges, setChallenges] = useState<Challenge[]>([])
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
+  const [rescanning, setRescanning] = useState(false)
+  const [scanCycle, setScanCycle] = useState(0)
+  const [scanMessage, setScanMessage] = useState('')
   const [view, setView] = useState<'scope' | 'list'>('scope')
   const [ticker, setTicker] = useState<TickerSolve[]>([])
   const [bloomIds, setBloomIds] = useState<Set<string>>(() => new Set())
+  const knownChallengeIds = useRef(new Set<string>())
   const seenSolveIds = useRef<Set<string> | null>(null)
   const bloomTimers = useRef<number[]>([])
   const { records: solves, status: solvesStatus } = useQuery<Solve>('solves', { orderBy: 'solvedAt', orderDir: 'asc' })
   const { users } = useUsers()
-  useEffect(() => {
-    void callCtfAction<{ challenges: Challenge[] }>('listChallenges')
-      .then((result) => setChallenges(result.challenges))
-      .catch((reason: unknown) => setError(reason instanceof Error ? reason.message : 'Unable to load challenges.'))
-      .finally(() => setLoading(false))
+  const loadChallenges = useCallback(async (reactivate = false) => {
+    if (reactivate) {
+      setRescanning(true)
+      setScanMessage('')
+    }
+    setError('')
+    try {
+      const result = await callCtfAction<{ challenges: Challenge[] }>('listChallenges')
+      const newCount = result.challenges.filter(({ challengeId }) => !knownChallengeIds.current.has(challengeId)).length
+      knownChallengeIds.current = new Set(result.challenges.map(({ challengeId }) => challengeId))
+      setChallenges(result.challenges)
+      if (reactivate) {
+        setScanCycle((cycle) => cycle + 1)
+        setScanMessage(newCount
+          ? `SCAN COMPLETE / ${newCount} NEW SIGNAL${newCount === 1 ? '' : 'S'} DETECTED`
+          : 'SCAN COMPLETE / NO NEW SIGNALS')
+      }
+    } catch (reason: unknown) {
+      setError(reason instanceof Error ? reason.message : 'Unable to load challenges.')
+    } finally {
+      setLoading(false)
+      if (reactivate) setRescanning(false)
+    }
   }, [])
+  useEffect(() => { void loadChallenges() }, [loadChallenges])
   const scoring = useMemo(() => tallySolves(solves), [solves])
   const scoreboard = useMemo(() => [...scoring.totals].sort((a, b) => b[1] - a[1]), [scoring])
   const solvedIds = useMemo(() => new Set(scoring.countedSolves.map((solve) => solve.data.challengeId)), [scoring])
@@ -131,27 +174,54 @@ export default function HomePage() {
         <p className="ctf-label">FIELD LOG / 01 — OPERATIONS</p>
         <h1>Deep Sea CTF</h1>
         <p className="ctf-subtitle">Recover the signal. Record each solve.</p>
+        <div className="ctf-readout" aria-label="Live operation summary">
+          <div className="ctf-readout-cell"><strong>{challenges.length}</strong><span>RELEASED CONTACTS</span></div>
+          <div className="ctf-readout-cell"><strong>{scoring.countedSolves.length}</strong><span>SOLVES RECORDED</span></div>
+          <div className="ctf-readout-cell"><strong>{scoreboard.length}</strong><span>OPERATORS SCORING</span></div>
+        </div>
       </header>
       <div className="ctf-columns">
         <section aria-labelledby="challenge-heading">
           <div className="challenge-heading-row">
             <h2 id="challenge-heading" className="ctf-label ctf-section-title">CHALLENGE BOARD</h2>
-            <div className="scope-toggle" role="group" aria-label="Challenge view">
-              <button type="button" aria-pressed={view === 'scope'} onClick={() => setView('scope')}>SCOPE</button>
-              <button type="button" aria-pressed={view === 'list'} onClick={() => setView('list')}>LIST</button>
+            <div className="challenge-heading-actions">
+              {scanMessage && <span className="sonar-scan-status" role="status" aria-live="polite">{scanMessage}</span>}
+              <button
+                type="button"
+                className="sonar-reactivate"
+                disabled={loading || rescanning}
+                aria-busy={rescanning}
+                onClick={() => { void loadChallenges(true) }}
+              >
+                {rescanning ? 'SCANNING...' : 'REACTIVATE SONAR'}
+              </button>
+              <div className="scope-toggle" role="group" aria-label="Challenge view">
+                <button type="button" aria-pressed={view === 'scope'} onClick={() => setView('scope')}>SCOPE</button>
+                <button type="button" aria-pressed={view === 'list'} onClick={() => setView('list')}>LIST</button>
+              </div>
             </div>
           </div>
-          {error && <p role="status">{error}</p>}
+          {error && challenges.length > 0 && <p role="alert" className="sonar-scan-error">{error}</p>}
           {view === 'scope' ? <div className="scope-panel">
-            <SonarScope challenges={challenges} solvedIds={solvedIds} bloomIds={bloomIds} />
-            <div className="sonar-ticker" role="log" aria-live="polite" aria-label="Recent contact log">
+            <div className="scope-panel-head">
+              <span className="ctf-label">RANGE / 000—4000 M</span>
+              <div className="scope-legend" aria-label="Contact status legend">
+                <span><i className="scope-legend-dot scope-legend-dot--open" />OPEN</span>
+                <span><i className="scope-legend-dot scope-legend-dot--solved" />LOGGED</span>
+              </div>
+            </div>
+            <SonarScope challenges={challenges} solvedIds={solvedIds} bloomIds={bloomIds} scanCycle={scanCycle} />
+            {loading && <SignalState state="loading" />}
+            {!loading && !challenges.length && <SignalState state={error ? 'error' : 'empty'} detail={error} />}
+            {!!challenges.length && <div className="sonar-ticker" role="log" aria-live="polite" aria-label="Recent contact log">
+              {!ticker.length && <p>LIVE FEED / WAITING FOR FIRST SOLVE</p>}
               {ticker.map((entry) => {
                 const name = users.find((user) => user.id === entry.userId)?.name ?? entry.userId.slice(0, 8)
                 const title = challenges.find((challenge) => challenge.challengeId === entry.challengeId)?.title ?? entry.challengeId.slice(0, 8)
                 return <p key={entry.recordId}>CONTACT LOGGED / {name} / {title} / +{entry.points}</p>
               })}
-            </div>
-          </div> : <div className="depth-zones">
+            </div>}
+          </div> : loading ? <SignalState state="loading" /> : !challenges.length ? <SignalState state={error ? 'error' : 'empty'} detail={error} /> : <div className="depth-zones">
             {zones.map((difficulty) => {
               const zoneChallenges = challenges.filter((challenge) => challenge.difficulty === difficulty)
               return <section className={`depth-zone depth-zone-${difficulty}`} key={difficulty} aria-labelledby={`depth-${difficulty}`}>
@@ -170,21 +240,9 @@ export default function HomePage() {
                 </div>
               </section>
             })}
-            {loading && <div className="ctf-loading"><DepthRing state="loading" /><span className="ctf-label">SCANNING FOR RELEASED SIGNALS</span></div>}
-            {!loading && !challenges.length && !error && <p className="ctf-empty">No released signals.</p>}
           </div>}
         </section>
-        <section className="ctf-scoreboard" aria-labelledby="score-heading">
-          <ContourPattern />
-          <h2 id="score-heading" className="ctf-label ctf-section-title">LIVE SCOREBOARD</h2>
-          <div className="ctf-table" role="table" aria-label="Live scoreboard">
-            <div className="ctf-row ctf-row-head" role="row"><span>RANK</span><span>CALLSIGN</span><span>SCORE</span></div>
-            {scoreboard.map(([userId, points], index) => (
-              <div className="ctf-row" role="row" key={userId}><span className="ctf-data">{String(index + 1).padStart(2, '0')}</span><span>{users.find((user) => user.id === userId)?.name ?? userId.slice(0, 8)}</span><span className="ctf-data">{points}</span></div>
-            ))}
-            {!scoreboard.length && <p className="ctf-empty">No solves logged.</p>}
-          </div>
-        </section>
+        <ScoreboardTable scores={scoreboard} users={users} />
       </div>
     </div>
   )
