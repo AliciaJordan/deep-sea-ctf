@@ -74,10 +74,11 @@ function AdminPanel() {
     setError('')
     setNotice('')
     try {
-      const result = await callCtfAction<{ created: number; total: number }>('seedStarterChallenges')
-      setNotice(result.created
-        ? `Loaded ${result.created} of ${result.total} starter challenges.`
-        : 'Starter challenges are already loaded.')
+      const result = await callCtfAction<{ created: number; rotated: number; total: number }>('seedStarterChallenges')
+      const messages = []
+      if (result.created) messages.push(`Loaded ${result.created} of ${result.total} starter challenges.`)
+      if (result.rotated) messages.push(`Rotated ${result.rotated} starter flag verifiers.`)
+      setNotice(messages.join(' ') || 'Starter challenges and verifiers are current.')
       await reload()
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Unable to load starter challenges.')

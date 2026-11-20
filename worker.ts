@@ -114,6 +114,7 @@ export interface Env extends DOBindings<typeof __DO_MANIFEST__> {
    */
   APP_OWNER_JWT: string
   CTF_FLAG_HMAC_KEY?: string
+  CTF_STARTER_FLAGS_B64?: string
   /**
    * Enables /api/debug/* only when exactly "true". The route still requires
    * an authenticated app owner/admin. deepspace dev/test set it locally.

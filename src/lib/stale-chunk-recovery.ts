@@ -60,7 +60,7 @@ function clearReloadAttempt(storage: RecoveryOptions['storage']): void {
   }
 }
 
-/** Reload a stale tab once, then surface a persistent route-chunk failure. */
+/** Recover once from a stale route chunk, then surface persistent failures. */
 export function installStaleChunkRecovery(
   router: RouterInitialization,
   { storage, reload, onPreloadError }: RecoveryOptions = browserRecovery(),

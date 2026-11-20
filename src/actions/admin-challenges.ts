@@ -14,7 +14,6 @@ const starterChallenges = [
     difficulty: 1,
     points: 50,
     description: 'Recover the sealed note from /challenges/bottle.txt.',
-    flag: 'ocean{silent-current-af20d4}',
   },
   {
     challengeId: 'starter-radio-operators-log',
@@ -23,7 +22,6 @@ const starterChallenges = [
     difficulty: 2,
     points: 150,
     description: 'Inspect the transmission in /challenges/log.txt.',
-    flag: 'ocean{distant-buoy-7b0c11}',
   },
   {
     challengeId: 'starter-harbor-office',
@@ -32,9 +30,36 @@ const starterChallenges = [
     difficulty: 1,
     points: 100,
     description: "Read the harbor-office page source at /challenges/harbor.html.",
-    flag: 'ocean{brass-window-d61382}',
   },
 ] as const
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function parseStarterFlags(encoded: string | undefined):
+  | { success: true; data: Record<string, string> }
+  | { success: false; error: string } {
+  if (!encoded) return { success: false, error: 'Starter challenge flags are not configured.' }
+
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(atob(encoded))
+  } catch {
+    return { success: false, error: 'Starter challenge flag configuration is invalid.' }
+  }
+  if (!isRecord(parsed)) return { success: false, error: 'Starter challenge flag configuration is invalid.' }
+
+  const flags: Record<string, string> = {}
+  for (const { challengeId } of starterChallenges) {
+    const flag = parsed[challengeId]
+    if (typeof flag !== 'string' || !/^ocean\{[^\s{}]{8,256}\}$/.test(flag)) {
+      return { success: false, error: 'Starter challenge flag configuration is incomplete or invalid.' }
+    }
+    flags[challengeId] = flag
+  }
+  return { success: true, data: flags }
+}
 
 export const isOwnerAction: ActionHandler<Env> = async ({ userId, env }) => ({
   success: true,
@@ -44,10 +69,13 @@ export const isOwnerAction: ActionHandler<Env> = async ({ userId, env }) => ({
 export const seedStarterChallenges: ActionHandler<Env> = async ({ userId, tools, env }) => {
   if (!isOwner(userId, env)) return { success: false, error: 'Forbidden.' }
   if (!env.CTF_FLAG_HMAC_KEY) return { success: false, error: 'Flag verification is not configured.' }
+  const parsedFlags = parseStarterFlags(env.CTF_STARTER_FLAGS_B64)
+  if (!parsedFlags.success) return parsedFlags
 
   let created = 0
+  let rotated = 0
   const releaseAt = '2020-01-01T00:00:00.000Z'
-  for (const { challengeId, flag, ...challengeData } of starterChallenges) {
+  for (const { challengeId, ...challengeData } of starterChallenges) {
     const existing = await tools.get<Record<string, unknown>>('challenges', challengeId)
     if (!existing.success) {
       const challenge = await tools.create(
@@ -70,12 +98,17 @@ export const seedStarterChallenges: ActionHandler<Env> = async ({ userId, tools,
     if (secrets.data.records.length > 1) {
       return { success: false, error: `Starter challenge verification is ambiguous for ${challengeId}.` }
     }
-    if (secrets.data.records.length === 1) continue
+    const expectedMac = await flagMac(parsedFlags.data[challengeId], env.CTF_FLAG_HMAC_KEY)
+    if (secrets.data.records.length === 1) {
+      const current = secrets.data.records[0]
+      if (current.data.flagMac === expectedMac) continue
+      const updated = await tools.update('challengeSecrets', current.recordId, { flagMac: expectedMac })
+      if (!updated.success) return updated
+      rotated++
+      continue
+    }
 
-    const secret = await tools.create('challengeSecrets', {
-      challengeId,
-      flagMac: await flagMac(flag, env.CTF_FLAG_HMAC_KEY),
-    })
+    const secret = await tools.create('challengeSecrets', { challengeId, flagMac: expectedMac })
     if (!secret.success) {
       const racedSecret = await tools.query<{ challengeId: string; flagMac: string }>(
         'challengeSecrets', { where: { challengeId }, limit: 2 },
@@ -83,10 +116,15 @@ export const seedStarterChallenges: ActionHandler<Env> = async ({ userId, tools,
       if (!racedSecret.success || racedSecret.data.records.length !== 1) {
         return { success: false, error: `Could not save verification for starter challenge ${challengeId}.` }
       }
+      if (racedSecret.data.records[0].data.flagMac !== expectedMac) {
+        const updated = await tools.update('challengeSecrets', racedSecret.data.records[0].recordId, { flagMac: expectedMac })
+        if (!updated.success) return updated
+        rotated++
+      }
     }
   }
 
-  return { success: true, data: { created, total: starterChallenges.length } }
+  return { success: true, data: { created, rotated, total: starterChallenges.length } }
 }
 
 export const createChallenge: ActionHandler<Env> = async ({ userId, params, tools, env }) => {

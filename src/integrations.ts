@@ -1,3 +1,5 @@
+import { lookupOwn } from 'deepspace/worker'
+
 /**
  * Integration Billing Config
  *
@@ -10,7 +12,7 @@
  * 'developer' integration to let signed-out visitors call it too — the owner
  * then pays for anyone who can reach the app.
  *
- * Integrations not listed here default to 'developer' with sign-in required.
+ * Integrations not listed here are disabled and fail closed.
  *
  * IMPORTANT: any integration backed by per-user connected accounts (Google,
  * Composio) must be 'user' — the api-worker resolves the account from the
@@ -27,4 +29,8 @@ export const integrations: Record<
   google: { billing: 'user' },
   composio: { billing: 'user' },
   // openai: { billing: 'developer', anonymous: true },
+}
+
+export function getIntegrationConfig(name: string) {
+  return lookupOwn(integrations, name)
 }

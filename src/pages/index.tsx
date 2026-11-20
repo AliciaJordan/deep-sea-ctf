@@ -2,7 +2,7 @@
 import { Link } from 'react-router-dom'
 import { Seo } from '../components/Seo'
 import { APP_NAME } from '../constants'
-import { seo } from '../seo'
+import { seo } from '../config/seo'
 
 const depthBands = [
   { depth: '10 M', zone: 'SUNLIT', index: '01' },

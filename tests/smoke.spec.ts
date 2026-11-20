@@ -27,7 +27,7 @@ test.describe('Smoke tests', () => {
   })
 
   test('landing carries one title, one description, one canonical', async ({ page }) => {
-    // <Seo> (src/pages/index.tsx, values from src/seo.ts) hoists these into
+    // <Seo> (src/pages/index.tsx, values from src/config/seo.ts) hoists these into
     // <head>. Exactly one of each: index.html ships no static description or
     // canonical, because React 19 would not dedupe against them on mount.
     await page.goto('/')

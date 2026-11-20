@@ -30,7 +30,7 @@ export default defineConfig({
     deepspaceBuild({ appDir }),
     // Prerenders the public pages listed in src/prerender-entry.tsx into static
     // HTML at `vite build`, stamps their <Seo> head, and writes sitemap.xml plus
-    // the robots.txt Sitemap line from src/seo.ts — so crawlers that do not run
+    // the robots.txt Sitemap line from src/config/seo.ts — so crawlers that do not run
     // JavaScript read real content. See prerender.ts; delete this line for a
     // plain SPA.
     prerender(),

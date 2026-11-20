@@ -52,7 +52,7 @@ interface Entry {
  * Public origin every canonical URL and the sitemap hang off. `deepspace
  * deploy` sets DEEPSPACE_SITE_ORIGIN for the build it runs (staging resolves
  * to spacestest.com); a plain `vite build` derives it from wrangler.toml's
- * top-level `name`. src/seo.ts reads it as `__DEEPSPACE_SITE_ORIGIN__` and is
+ * top-level `name`. src/config/seo.ts reads it as `__DEEPSPACE_SITE_ORIGIN__` and is
  * the place to override it once a custom domain is attached.
  */
 function siteOrigin(): string {

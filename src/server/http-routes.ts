@@ -14,7 +14,6 @@ import {
   BROWSER_PROXY_ROUTES,
   integrationPath,
   isPlatformReservedPath,
-  lookupOwn,
   platformWorkerFetch,
   resolveAppRole,
   resolveSessionReadAuth,
@@ -29,7 +28,7 @@ import {
   nativeAuthToken,
 } from 'deepspace/worker'
 import type { ExpoAuthBridgeOptions, JwtVerifierConfig, VerifyResult } from 'deepspace/worker'
-import { integrations } from '../integrations.js'
+import { getIntegrationConfig } from '../integrations.js'
 import type { AppContext, Env } from '../../worker.js'
 
 function jwtConfig(env: Env): JwtVerifierConfig {
@@ -237,14 +236,15 @@ export function registerAuthAndIntegrationRoutes(app: Hono<AppContext>): void {
     // identifiers only, and own keys only for the config.
     const target = integrationPath(integrationName, c.req.param('endpoint'))
     if (!target) return c.json({ error: 'Unknown integration' }, 404)
-    const config = lookupOwn(integrations, integrationName)
-    const billingMode = config?.billing ?? 'developer'
+    const config = getIntegrationConfig(integrationName)
+    if (!config) return c.json({ error: 'Integration is not configured' }, 404)
+    const billingMode = config.billing
 
     // Sign-in is required unless the app opts this integration into anonymous
     // use; developer billing would otherwise let any visitor spend the owner's
     // credits. User billing always needs a caller to bill.
     const auth = await resolveAuth(c.req.raw, c.env)
-    if (!auth && (billingMode === 'user' || !config?.anonymous)) {
+    if (!auth && (billingMode === 'user' || !config.anonymous)) {
       return c.json({ error: 'Sign in required for this integration' }, 401)
     }
 
