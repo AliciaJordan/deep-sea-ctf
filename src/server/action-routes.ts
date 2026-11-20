@@ -36,7 +36,7 @@ import {
 } from 'deepspace/worker'
 import type { ActionResult, ActionTools, VerifyResult } from 'deepspace/worker'
 import { actions } from '../actions/index.js'
-import { integrations } from '../integrations.js'
+import { getIntegrationConfig } from '../integrations.js'
 import type { AppContext, Env } from '../../worker.js'
 
 type ResolveAuth = (req: Request, env: Env) => Promise<VerifyResult | null>
@@ -104,7 +104,11 @@ function createActionTools(env: Env, userId: string, callerJwt: string): ActionT
       }
     }
     const integrationName = target.name
-    const billingMode = lookupOwn(integrations, integrationName)?.billing ?? 'developer'
+    const integrationConfig = getIntegrationConfig(integrationName)
+    if (!integrationConfig) {
+      return { success: false, code: 'integration_not_configured', error: `Integration ${JSON.stringify(integrationName)} is not configured.` }
+    }
+    const billingMode = integrationConfig.billing
 
     // The api-worker bills the JWT subject: owner for developer mode, caller
     // for user mode. It does not accept a client-supplied billing override.
