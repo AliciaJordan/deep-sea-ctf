@@ -12,6 +12,9 @@ export const challengesSchema: CollectionSchema = {
     { name: 'description', storage: 'text', interpretation: 'plain', required: true },
     { name: 'releaseAt', storage: 'text', interpretation: 'datetime', required: true },
     { name: 'published', storage: 'number', interpretation: { kind: 'boolean' }, required: true },
+    { name: 'authorId', storage: 'text', interpretation: 'plain' },
+    { name: 'reviewStatus', storage: 'text', interpretation: 'plain' },
+    { name: 'writeup', storage: 'text', interpretation: 'plain' },
   ],
   permissions: {
     viewer: closed,

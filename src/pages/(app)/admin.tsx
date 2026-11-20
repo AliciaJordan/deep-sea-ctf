@@ -12,6 +12,9 @@ type Challenge = {
   description: string
   releaseAt: string
   published: boolean
+  authorId?: string
+  reviewStatus?: 'pending' | 'approved' | 'rejected'
+  writeup?: string
 }
 
 const emptyForm = {
@@ -26,6 +29,7 @@ export default function AdminPage() {
 function AdminPanel() {
   const [challenges, setChallenges] = useState<Challenge[]>([])
   const [form, setForm] = useState(emptyForm)
+  const [reviewPoints, setReviewPoints] = useState<Record<string, string>>({})
   const [denied, setDenied] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
@@ -92,6 +96,25 @@ function AdminPanel() {
     }
   }
 
+  async function review(challenge: Challenge, decision: 'approve' | 'reject') {
+    setBusy(true)
+    setError('')
+    setNotice('')
+    try {
+      await callCtfAction('reviewCommunityChallenge', {
+        challengeId: challenge.challengeId,
+        decision,
+        points: Number(reviewPoints[challenge.challengeId] ?? challenge.difficulty * 100),
+      })
+      setNotice(decision === 'approve' ? `${challenge.title} APPROVED AND PUBLISHED.` : `${challenge.title} REJECTED.`)
+      await reload()
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Unable to review challenge.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
   if (denied) return <main className="ctf-shell"><p className="ctf-label" role="alert">403 / OWNER ACCESS ONLY</p></main>
 
   return <main className="ctf-shell">
@@ -102,6 +125,34 @@ function AdminPanel() {
     </header>
     {error && <p role="alert" className="ctf-status">{error}</p>}
     {notice && <p role="status" className="ctf-status">{notice}</p>}
+    <section className="community-review" aria-labelledby="review-heading">
+      <h2 id="review-heading" className="ctf-label ctf-section-title">COMMUNITY CHALLENGES / UNDER REVIEW</h2>
+      {challenges.filter((challenge) => challenge.reviewStatus === 'pending').map((challenge) => <article className="review-card" key={challenge.challengeId}>
+        <div className="review-card-heading">
+          <div>
+            <h3>{challenge.title}</h3>
+            <p>{challenge.category} / DEPTH {challenge.difficulty} / SUBMITTED BY {challenge.authorId?.slice(0, 8)}</p>
+          </div>
+          <label>Points<input
+            type="number"
+            min={0}
+            max={1000}
+            value={reviewPoints[challenge.challengeId] ?? challenge.difficulty * 100}
+            onChange={(event) => setReviewPoints({ ...reviewPoints, [challenge.challengeId]: event.target.value })}
+          /></label>
+        </div>
+        <p className="review-description">{challenge.description}</p>
+        <details>
+          <summary>READ SUBMITTED SOLUTION</summary>
+          <pre>{challenge.writeup || 'No solution write-up was provided.'}</pre>
+        </details>
+        <div className="review-actions">
+          <button type="button" disabled={busy} onClick={() => void review(challenge, 'approve')}>APPROVE &amp; PUBLISH</button>
+          <button type="button" disabled={busy} onClick={() => void review(challenge, 'reject')}>REJECT</button>
+        </div>
+      </article>)}
+      {!challenges.some((challenge) => challenge.reviewStatus === 'pending') && <p className="ctf-empty">NO CHALLENGES AWAITING REVIEW</p>}
+    </section>
     <form className="admin-form" onSubmit={create}>
       <button className="admin-form-wide" type="button" disabled={busy} onClick={() => void seedStarters()}>
         {busy ? 'LOADING STARTERS' : 'LOAD STARTER CHALLENGES'}
@@ -122,7 +173,11 @@ function AdminPanel() {
         <div className="ctf-row ctf-row-head"><span>DEPTH</span><span>CHALLENGE</span><span>POINTS / STATE</span></div>
         {challenges.map((challenge) => <div className="ctf-row" key={challenge.challengeId}>
           <span>{challenge.difficulty}</span><span>{challenge.title}<small>{challenge.category}</small></span>
-          <span className="ctf-data">{challenge.points} / {challenge.published ? 'PUBLISHED' : 'DRAFT'} <button type="button" onClick={() => void publish(challenge)}>{challenge.published ? 'UNPUBLISH' : 'PUBLISH'}</button></span>
+          <span className="ctf-data">
+            {challenge.points} / {challenge.reviewStatus?.toUpperCase() ?? (challenge.published ? 'PUBLISHED' : 'DRAFT')}
+            {challenge.reviewStatus !== 'pending' && challenge.reviewStatus !== 'rejected' &&
+              <button type="button" onClick={() => void publish(challenge)}>{challenge.published ? 'UNPUBLISH' : 'PUBLISH'}</button>}
+          </span>
         </div>)}
         {!challenges.length && <p className="ctf-empty">NO CONTACTS YET</p>}
       </div>
