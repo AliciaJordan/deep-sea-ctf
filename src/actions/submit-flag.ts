@@ -111,6 +111,15 @@ export const submitFlag: ActionHandler<Env> = async ({ userId, params, tools, en
   }
   if (data.authorId === userId) return { success: false, error: 'Challenge authors cannot submit their own flags.' }
 
+  const existing = await tools.query('solves', { where: { userId, challengeId }, limit: 1 })
+  if (!existing.success) return existing
+  if (existing.data.records.length) {
+    return {
+      success: true,
+      data: { correct: true, alreadySolved: true, ...(typeof data.writeup === 'string' ? { writeup: data.writeup } : {}) },
+    }
+  }
+
   const secrets = await tools.query<{ challengeId: string; flagMac: string }>(
     'challengeSecrets', { where: { challengeId }, limit: 2 },
   )
@@ -128,18 +137,10 @@ export const submitFlag: ActionHandler<Env> = async ({ userId, params, tools, en
     ? await timingSafeEqualHex(actual, expected)
     : false
   const ts = new Date(now).toISOString()
-  const submission = await tools.create('submissions', { userId, challengeId, correct, ts })
-  if (!submission.success) return submission
-  if (correct) await tools.remove('attemptClaims', reservation.recordId)
-  if (!correct) return { success: true, data: { correct: false } }
-
-  const existing = await tools.query('solves', { where: { userId, challengeId }, limit: 1 })
-  if (!existing.success) return existing
-  if (existing.data.records.length) {
-    return {
-      success: true,
-      data: { correct: true, alreadySolved: true, ...(typeof data.writeup === 'string' ? { writeup: data.writeup } : {}) },
-    }
+  if (!correct) {
+    const submission = await tools.create('submissions', { userId, challengeId, correct, ts })
+    if (!submission.success) return submission
+    return { success: true, data: { correct: false } }
   }
 
   const priorSolves = await tools.query('solves', { where: { challengeId }, orderBy: 'solvedAt', orderDir: 'asc', limit: 1 })
@@ -154,6 +155,7 @@ export const submitFlag: ActionHandler<Env> = async ({ userId, params, tools, en
   if (!solve.success) {
     const raced = await tools.query('solves', { where: { userId, challengeId }, limit: 1 })
     if (raced.success && raced.data.records.length) {
+      await tools.remove('attemptClaims', reservation.recordId)
       return {
         success: true,
         data: { correct: true, alreadySolved: true, ...(typeof data.writeup === 'string' ? { writeup: data.writeup } : {}) },
@@ -161,6 +163,9 @@ export const submitFlag: ActionHandler<Env> = async ({ userId, params, tools, en
     }
     return solve
   }
+  const submission = await tools.create('submissions', { userId, challengeId, correct: true, ts })
+  if (!submission.success) return submission
+  await tools.remove('attemptClaims', reservation.recordId)
   return {
     success: true,
     data: { correct: true, alreadySolved: false, ...(typeof data.writeup === 'string' ? { writeup: data.writeup } : {}) },

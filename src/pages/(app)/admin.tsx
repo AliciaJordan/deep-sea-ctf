@@ -17,9 +17,19 @@ type Challenge = {
   writeup?: string
 }
 
-const emptyForm = {
-  title: '', category: '', difficulty: '1', points: '100', description: '', flag: '',
-  releaseAt: new Date().toISOString().slice(0, 16), published: false,
+function createEmptyForm() {
+  const now = new Date()
+  const pad = (value: number) => String(value).padStart(2, '0')
+  return {
+    title: '',
+    category: '',
+    difficulty: '1',
+    points: '100',
+    description: '',
+    flag: '',
+    releaseAt: `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`,
+    published: false,
+  }
 }
 
 export default function AdminPage() {
@@ -28,7 +38,7 @@ export default function AdminPage() {
 
 function AdminPanel() {
   const [challenges, setChallenges] = useState<Challenge[]>([])
-  const [form, setForm] = useState(emptyForm)
+  const [form, setForm] = useState(createEmptyForm)
   const [reviewPoints, setReviewPoints] = useState<Record<string, string>>({})
   const [denied, setDenied] = useState(false)
   const [error, setError] = useState('')
@@ -60,28 +70,10 @@ function AdminPanel() {
         points: Number(form.points),
         releaseAt: new Date(form.releaseAt).toISOString(),
       })
-      setForm(emptyForm)
+      setForm(createEmptyForm())
       await reload()
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Unable to create challenge.')
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  async function seedStarters() {
-    setBusy(true)
-    setError('')
-    setNotice('')
-    try {
-      const result = await callCtfAction<{ created: number; rotated: number; total: number }>('seedStarterChallenges')
-      const messages = []
-      if (result.created) messages.push(`Loaded ${result.created} of ${result.total} starter challenges.`)
-      if (result.rotated) messages.push(`Rotated ${result.rotated} starter flag verifiers.`)
-      setNotice(messages.join(' ') || 'Starter challenges and verifiers are current.')
-      await reload()
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Unable to load starter challenges.')
     } finally {
       setBusy(false)
     }
@@ -155,9 +147,6 @@ function AdminPanel() {
       {!challenges.some((challenge) => challenge.reviewStatus === 'pending') && <p className="ctf-empty">NO CHALLENGES AWAITING REVIEW</p>}
     </section>
     <form className="admin-form" onSubmit={create}>
-      <button className="admin-form-wide" type="button" disabled={busy} onClick={() => void seedStarters()}>
-        {busy ? 'LOADING STARTERS' : 'LOAD STARTER CHALLENGES'}
-      </button>
       <label>Title<input required maxLength={120} value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></label>
       <label>Category<input required maxLength={80} value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} /></label>
       <label>Depth<select value={form.difficulty} onChange={(e) => setForm({ ...form, difficulty: e.target.value })}>{[1, 2, 3, 4].map((value) => <option key={value} value={value}>{value}</option>)}</select></label>

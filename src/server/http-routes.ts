@@ -31,6 +31,8 @@ import type { ExpoAuthBridgeOptions, JwtVerifierConfig, VerifyResult } from 'dee
 import { getIntegrationConfig } from '../integrations.js'
 import type { AppContext, Env } from '../../worker.js'
 
+const ALLOWED_INTEGRATION_ENDPOINTS = new Set<string>()
+
 function jwtConfig(env: Env): JwtVerifierConfig {
   return { publicKey: env.AUTH_JWT_PUBLIC_KEY, issuer: env.AUTH_JWT_ISSUER }
 }
@@ -231,13 +233,16 @@ export function registerAuthAndIntegrationRoutes(app: Hono<AppContext>): void {
 
   app.all('/api/integrations/:name/:endpoint', async (c) => {
     const integrationName = c.req.param('name')
+    const endpoint = c.req.param('endpoint')
     // Params arrive decoded, so `..%2F..%2Fapi%2Fusers` would otherwise
     // reach another api-worker route with the owner's token. Plain
     // identifiers only, and own keys only for the config.
-    const target = integrationPath(integrationName, c.req.param('endpoint'))
-    if (!target) return c.json({ error: 'Unknown integration' }, 404)
+    const target = integrationPath(integrationName, endpoint)
+    if (!target || !ALLOWED_INTEGRATION_ENDPOINTS.has(`${integrationName}/${endpoint}`)) {
+      return c.json({ error: 'Integration endpoint is not allowed' }, 403)
+    }
     const config = getIntegrationConfig(integrationName)
-    if (!config) return c.json({ error: 'Integration is not configured' }, 404)
+    if (!config) return c.json({ error: 'Integration is not configured' }, 403)
     const billingMode = config.billing
 
     // Sign-in is required unless the app opts this integration into anonymous

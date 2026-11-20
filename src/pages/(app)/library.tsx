@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
+import SignInToDive from '../../components/SignInToDive'
 import { callCtfAction } from '../../lib/ctf-actions'
 import { DepthGauge, DepthRing } from '../../components/DepthRing'
 
@@ -15,6 +16,10 @@ type Challenge = {
 const depths = ['', '10 m', '200 m', '1000 m', '4000 m']
 
 export default function LibraryPage() {
+  return <SignInToDive><ChallengeLibrary /></SignInToDive>
+}
+
+function ChallengeLibrary() {
   const [challenges, setChallenges] = useState<Challenge[]>([])
   const [query, setQuery] = useState('')
   const [category, setCategory] = useState('')

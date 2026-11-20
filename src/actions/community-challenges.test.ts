@@ -2,14 +2,16 @@ import { describe, expect, it, vi } from 'vitest'
 import type { Env } from '../../worker'
 import { createCommunityChallenge } from './community-challenges'
 
-const sampleFlag = ['ocean', '{', 'x'.repeat(8), '}'].join('')
+function randomFlag(): string {
+  return ['ocean', '{', crypto.randomUUID().replaceAll('-', ''), '}'].join('')
+}
 
 const params = {
   title: 'Lost Signal',
   category: 'FORENSICS',
   difficulty: 2,
   description: 'Inspect the recovered transmission.',
-  flag: sampleFlag,
+  flag: randomFlag(),
   writeup: 'Decode the payload to recover the signal.',
 }
 
@@ -36,7 +38,7 @@ describe('community challenge submission', () => {
       collection: 'challenges',
       data: { authorId: 'player-1', published: false, reviewStatus: 'pending', points: 0 },
     })
-    expect(JSON.stringify(records)).not.toContain(sampleFlag)
+    expect(JSON.stringify(records)).not.toContain(params.flag)
     expect(records[1].collection).toBe('challengeSecrets')
     expect(records[1].data).toHaveProperty('flagMac')
   })

@@ -11,6 +11,14 @@ export type CommunityChallengeDraftResult =
   | { success: true; data: CommunityChallengeDraft }
   | { success: false; error: string }
 
+const FLAG_PREFIX = ['ocean', '{'].join('')
+
+function isValidFlag(flag: string): boolean {
+  if (!flag.startsWith(FLAG_PREFIX) || !flag.endsWith('}')) return false
+  const payload = flag.slice(FLAG_PREFIX.length, -1)
+  return payload.length >= 8 && payload.length <= 256 && !/[\s{}]/.test(payload)
+}
+
 export function parseCommunityChallengeDraft(params: Record<string, unknown>): CommunityChallengeDraftResult {
   const title = typeof params.title === 'string' ? params.title.trim() : ''
   const category = typeof params.category === 'string' ? params.category.trim() : ''
@@ -25,8 +33,8 @@ export function parseCommunityChallengeDraft(params: Record<string, unknown>): C
   if (typeof difficulty !== 'number' || !Number.isInteger(difficulty) || difficulty < 1 || difficulty > 4) {
     return { success: false, error: 'Depth must be between 1 and 4.' }
   }
-  if (!/^ocean\{[^\s{}]{8,256}\}$/.test(flag)) {
-    return { success: false, error: 'Flag must use ocean{...} with 8 to 256 non-space characters inside.' }
+  if (!isValidFlag(flag)) {
+    return { success: false, error: 'Flag must use the required format with 8 to 256 non-space characters inside.' }
   }
   if (!writeup || writeup.length > 8000) return { success: false, error: 'Solution must be 1 to 8000 characters.' }
 

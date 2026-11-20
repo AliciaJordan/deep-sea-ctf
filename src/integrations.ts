@@ -5,12 +5,11 @@ import { lookupOwn } from 'deepspace/worker'
  *
  * Configure who pays for each integration's API calls.
  *
- * - 'developer': The app owner pays (default).
+ * - 'developer': The app owner pays when explicitly configured.
  * - 'user': The calling user pays.
  *
- * Every integration requires a signed-in caller. Set `anonymous: true` on a
- * 'developer' integration to let signed-out visitors call it too — the owner
- * then pays for anyone who can reach the app.
+ * Only integrations listed here are configured. This app currently uses no
+ * external integrations.
  *
  * Integrations not listed here are disabled and fail closed.
  *
@@ -26,9 +25,6 @@ export const integrations: Record<
   string,
   { billing: 'developer' | 'user'; anonymous?: boolean }
 > = {
-  google: { billing: 'user' },
-  composio: { billing: 'user' },
-  // openai: { billing: 'developer', anonymous: true },
 }
 
 export function getIntegrationConfig(name: string) {

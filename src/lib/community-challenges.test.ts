@@ -1,13 +1,16 @@
 import { describe, expect, it } from 'vitest'
 import { parseCommunityChallengeDraft } from './community-challenges'
 
-const sampleFlag = ['ocean', '{', 'x'.repeat(8), '}'].join('')
+function randomFlag(): string {
+  return ['ocean', '{', crypto.randomUUID().replaceAll('-', ''), '}'].join('')
+}
+
 const draft = {
   title: '  Lost Signal  ',
   category: ' FORENSICS ',
   difficulty: 2,
   description: 'Inspect the recovered transmission.',
-  flag: ` ${sampleFlag} `,
+  flag: ` ${randomFlag()} `,
   writeup: 'Decode the payload, then verify the recovered signal.',
 }
 
@@ -19,7 +22,7 @@ describe('parseCommunityChallengeDraft', () => {
         ...draft,
         title: 'Lost Signal',
         category: 'FORENSICS',
-        flag: sampleFlag,
+        flag: draft.flag.trim(),
       },
     })
   })
@@ -27,7 +30,7 @@ describe('parseCommunityChallengeDraft', () => {
   it('rejects malformed flags and invalid depth values', () => {
     expect(parseCommunityChallengeDraft({ ...draft, flag: 'not-a-flag' })).toMatchObject({
       success: false,
-      error: 'Flag must use ocean{...} with 8 to 256 non-space characters inside.',
+      error: 'Flag must use the required format with 8 to 256 non-space characters inside.',
     })
     expect(parseCommunityChallengeDraft({ ...draft, difficulty: 5 })).toMatchObject({
       success: false,

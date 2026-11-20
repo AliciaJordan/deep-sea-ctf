@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery, useUsers } from 'deepspace'
+import SignInToDive from '../../components/SignInToDive'
 import { callCtfAction } from '../../lib/ctf-actions'
 import { DepthGauge, DepthRing } from '../../components/DepthRing'
 import { ScoreboardTable } from '../../components/ScoreboardTable'
@@ -94,6 +95,10 @@ function SignalState({ state, detail }: { state: 'loading' | 'empty' | 'error'; 
 }
 
 export default function HomePage() {
+  return <SignInToDive><HomeBoard /></SignInToDive>
+}
+
+function HomeBoard() {
   const [challenges, setChallenges] = useState<Challenge[]>([])
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
