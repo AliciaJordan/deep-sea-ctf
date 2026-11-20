@@ -35,6 +35,8 @@ export default function Navigation() {
         <Link className="topbar-brand" to="/home">{APP_NAME}</Link>
         <div className="topbar-links">
           {link('/home', 'BOARD')}
+          {link('/library', 'LIBRARY')}
+          {link('/submit-challenge', 'CREATE')}
           {link('/scoreboard', 'SCOREBOARD')}
           {isOwner && link('/admin', 'ADMIN')}
         </div>

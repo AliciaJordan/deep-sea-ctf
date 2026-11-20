@@ -1,14 +1,8 @@
 import { timingSafeEqualHex } from 'deepspace/worker'
 import type { ActionHandler } from 'deepspace/worker'
 import type { Env } from '../../worker'
-
-async function flagMac(flag: string, key: string): Promise<string> {
-  const cryptoKey = await crypto.subtle.importKey(
-    'raw', new TextEncoder().encode(key), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'],
-  )
-  const digest = await crypto.subtle.sign('HMAC', cryptoKey, new TextEncoder().encode(flag))
-  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('')
-}
+import { isOwner } from './admin-challenges'
+import { flagMac } from '../lib/flag-mac'
 
 function isPublished(value: unknown): boolean {
   return value === true || value === 1
@@ -68,6 +62,41 @@ export const listChallenges: ActionHandler<Env> = async ({ tools }) => {
   return { success: true, data: { challenges: records } }
 }
 
+export const getChallenge: ActionHandler<Env> = async ({ userId, params, tools, env }) => {
+  const challengeId = typeof params.challengeId === 'string' ? params.challengeId.trim() : ''
+  if (!challengeId) return { success: false, error: 'Challenge is required.' }
+
+  const challenge = await tools.get<Record<string, unknown>>('challenges', challengeId)
+  if (!challenge.success) return { success: false, error: 'Challenge unavailable.' }
+  const data = challenge.data.record.data
+  if (!isPublished(data.published) || typeof data.releaseAt !== 'string' || Date.parse(data.releaseAt) > Date.now()) {
+    return { success: false, error: 'Challenge unavailable.' }
+  }
+
+  let canReadWriteup = isOwner(userId, env) || data.authorId === userId
+  if (!canReadWriteup && typeof data.writeup === 'string') {
+    const solved = await tools.query('solves', { where: { userId, challengeId }, limit: 1 })
+    if (!solved.success) return solved
+    canReadWriteup = solved.data.records.length > 0
+  }
+
+  return {
+    success: true,
+    data: {
+      challenge: {
+        challengeId,
+        title: data.title,
+        category: data.category,
+        difficulty: data.difficulty,
+        points: data.points,
+        description: data.description,
+        canSubmit: data.authorId !== userId,
+        ...(canReadWriteup && typeof data.writeup === 'string' ? { writeup: data.writeup } : {}),
+      },
+    },
+  }
+}
+
 export const submitFlag: ActionHandler<Env> = async ({ userId, params, tools, env }) => {
   const challengeId = typeof params.challengeId === 'string' ? params.challengeId : ''
   const flag = typeof params.flag === 'string' ? params.flag.trim() : ''
@@ -80,6 +109,7 @@ export const submitFlag: ActionHandler<Env> = async ({ userId, params, tools, en
   if (!isPublished(data.published) || typeof data.releaseAt !== 'string' || Date.parse(data.releaseAt) > Date.now()) {
     return { success: false, error: 'Challenge unavailable.' }
   }
+  if (data.authorId === userId) return { success: false, error: 'Challenge authors cannot submit their own flags.' }
 
   const secrets = await tools.query<{ challengeId: string; flagMac: string }>(
     'challengeSecrets', { where: { challengeId }, limit: 2 },
@@ -105,7 +135,12 @@ export const submitFlag: ActionHandler<Env> = async ({ userId, params, tools, en
 
   const existing = await tools.query('solves', { where: { userId, challengeId }, limit: 1 })
   if (!existing.success) return existing
-  if (existing.data.records.length) return { success: true, data: { correct: true, alreadySolved: true } }
+  if (existing.data.records.length) {
+    return {
+      success: true,
+      data: { correct: true, alreadySolved: true, ...(typeof data.writeup === 'string' ? { writeup: data.writeup } : {}) },
+    }
+  }
 
   const priorSolves = await tools.query('solves', { where: { challengeId }, orderBy: 'solvedAt', orderDir: 'asc', limit: 1 })
   if (!priorSolves.success) return priorSolves
@@ -118,8 +153,16 @@ export const submitFlag: ActionHandler<Env> = async ({ userId, params, tools, en
   })
   if (!solve.success) {
     const raced = await tools.query('solves', { where: { userId, challengeId }, limit: 1 })
-    if (raced.success && raced.data.records.length) return { success: true, data: { correct: true, alreadySolved: true } }
+    if (raced.success && raced.data.records.length) {
+      return {
+        success: true,
+        data: { correct: true, alreadySolved: true, ...(typeof data.writeup === 'string' ? { writeup: data.writeup } : {}) },
+      }
+    }
     return solve
   }
-  return { success: true, data: { correct: true, alreadySolved: false } }
+  return {
+    success: true,
+    data: { correct: true, alreadySolved: false, ...(typeof data.writeup === 'string' ? { writeup: data.writeup } : {}) },
+  }
 }

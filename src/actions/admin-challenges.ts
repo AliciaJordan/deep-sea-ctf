@@ -1,15 +1,8 @@
 import type { ActionHandler } from 'deepspace/worker'
 import type { Env } from '../../worker'
+import { flagMac } from '../lib/flag-mac'
 
-async function flagMac(flag: string, key: string): Promise<string> {
-  const cryptoKey = await crypto.subtle.importKey(
-    'raw', new TextEncoder().encode(key), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'],
-  )
-  const digest = await crypto.subtle.sign('HMAC', cryptoKey, new TextEncoder().encode(flag))
-  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('')
-}
-
-function isOwner(userId: string, env: Env): boolean {
+export function isOwner(userId: string, env: Env): boolean {
   return Boolean(env.OWNER_USER_ID) && userId === env.OWNER_USER_ID
 }
 
@@ -148,6 +141,9 @@ export const adminListChallenges: ActionHandler<Env> = async ({ userId, tools, e
         description: data.description,
         releaseAt: data.releaseAt,
         published: data.published,
+        authorId: data.authorId,
+        reviewStatus: data.reviewStatus,
+        writeup: data.writeup,
       })),
     },
   }
@@ -161,6 +157,10 @@ export const setPublished: ActionHandler<Env> = async ({ userId, params, tools, 
   }
   const existing = await tools.get<Record<string, unknown>>('challenges', challengeId)
   if (!existing.success) return { success: false, error: 'Challenge not found.' }
+  if (params.published && existing.data.record.data.reviewStatus !== undefined &&
+      existing.data.record.data.reviewStatus !== 'approved') {
+    return { success: false, error: 'Challenge must be approved before publishing.' }
+  }
   const updated = await tools.update('challenges', challengeId, { published: params.published })
   if (!updated.success) return updated
   return { success: true, data: { challengeId, published: params.published } }
