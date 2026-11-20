@@ -3,8 +3,8 @@ import { createRoot, hydrateRoot } from 'react-dom/client'
 // the initial bundle for a public top-level route such as `/`.
 import { routes } from '@generouted/react-router/lazy'
 import { createBrowserRouter, RouterProvider } from 'react-router'
-import { installStaleChunkRecovery } from './stale-chunk-recovery'
-import './styles.css'
+import { installStaleChunkRecovery } from './lib/stale-chunk-recovery'
+import './styles/index.css'
 
 async function main() {
   const root = document.getElementById('root')!

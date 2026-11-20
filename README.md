@@ -108,10 +108,13 @@ Google and Composio are explicitly configured in the integration proxy, but neit
 | --- | --- |
 | [`worker.ts`](./worker.ts) | Worker assembly, Durable Object bindings, and route registration |
 | [`src/pages/`](./src/pages) | File-based React pages |
+| [`src/config/`](./src/config) | Shared app configuration, including landing-page SEO |
+| [`src/styles/`](./src/styles) | Global Tailwind styles and theme tokens |
 | [`src/actions/`](./src/actions) | Server-side challenge, flag-submission, and admin actions |
 | [`src/server/`](./src/server) | HTTP, action, and realtime Worker routes |
 | [`src/schemas/`](./src/schemas) | DeepSpace collection schemas and access permissions |
 | [`src/lib/flag-mac.ts`](./src/lib/flag-mac.ts) | Keyed flag-verifier helper |
+| [`src/lib/stale-chunk-recovery.ts`](./src/lib/stale-chunk-recovery.ts) | One-time recovery when a deployed route chunk is stale |
 | [`src/integrations.ts`](./src/integrations.ts) | Explicit integration and billing configuration |
 | [`tests/`](./tests) | Browser-based smoke, API, and collaboration tests |
 

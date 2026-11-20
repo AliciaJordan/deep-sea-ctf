@@ -3,7 +3,7 @@
  * styled entirely with the app's semantic theme tokens. These are yours:
  * restyle or delete them freely. Build app-specific components alongside them.
  *
- * The look comes from the token values in `styles.css` / `themes.css`
+ * The look comes from the token values in `src/styles/index.css` / `themes.css`
  * (colors, `--radius`, shadows) — change those to change the app, without
  * touching these files.
  *

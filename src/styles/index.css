@@ -2,8 +2,8 @@
 @import "./themes.css";
 
 /* Scan local source + SDK components for Tailwind class usage */
-@source "./**/*.{ts,tsx}";
-@source "../node_modules/deepspace/dist/**/*.js";
+@source "../**/*.{ts,tsx}";
+@source "../../node_modules/deepspace/dist/**/*.js";
 
 /*
  * Theming — pure shadcn/ui CSS variables with [data-theme] selectors.

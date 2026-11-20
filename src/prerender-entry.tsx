@@ -23,7 +23,7 @@ import * as app from './pages/_app'
 import Landing from './pages/index'
 
 // prerender.ts reads `origin` (canonical URLs, sitemap) and `noindex` from here.
-export { seo } from './seo'
+export { seo } from './config/seo'
 
 export const PAGES: Record<string, ComponentType> = {
   '/': Landing,

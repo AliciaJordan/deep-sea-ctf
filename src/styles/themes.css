@@ -1,4 +1,4 @@
-/* Deep Sea CTF's product theme. Keep index.html's first-paint color aligned. */
+/* Deep Sea CTF's product theme tokens, imported by index.css. */
 [data-theme="abyss"] {
   color-scheme: dark;
   --color-background: #030A14;
