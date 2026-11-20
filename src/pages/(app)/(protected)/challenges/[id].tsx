@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { callCtfAction } from '../../../../lib/ctf-actions'
 import { DepthGauge, DepthRing } from '../../../../components/DepthRing'
+import { playSoundEffect } from '../../../../lib/sound-effects'
 
 type Challenge = { challengeId: string; title: string; category: string; difficulty: number; points: number; description: string }
 const depths = ['', '10 m', '200 m', '1000 m', '4000 m']
@@ -26,6 +27,7 @@ export default function ChallengePage() {
     setStatus('')
     try {
       const result = await callCtfAction<{ correct: boolean; alreadySolved?: boolean }>('submitFlag', { challengeId: id, flag })
+      playSoundEffect(result.correct ? 'correct' : 'incorrect')
       setPingState(result.correct ? 'correct' : 'wrong')
       setPingKey((key) => key + 1)
       setStatus(result.correct ? (result.alreadySolved ? 'Already recorded.' : 'Correct. Solve recorded.') : 'Incorrect flag.')

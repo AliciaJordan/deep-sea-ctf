@@ -3,12 +3,14 @@ import { Link, useLocation } from 'react-router-dom'
 import { AuthOverlay, useAuthProfileReady, signOut } from 'deepspace'
 import { APP_NAME } from '../constants'
 import { callCtfAction } from '../lib/ctf-actions'
+import { setSoundEffectsEnabled } from '../lib/sound-effects'
 
 export default function Navigation() {
   const { isLoaded, isSignedIn, user, userLoading } = useAuthProfileReady({ requireUser: true })
   const location = useLocation()
   const [isOwner, setIsOwner] = useState(false)
   const [showAuthModal, setShowAuthModal] = useState(false)
+  const [soundEnabled, setSoundEnabled] = useState(true)
 
   useEffect(() => {
     let current = true
@@ -37,6 +39,19 @@ export default function Navigation() {
           {isOwner && link('/admin', 'ADMIN')}
         </div>
         <div className="topbar-account">
+          <button
+            className="topbar-action"
+            type="button"
+            aria-label={`Turn sound effects ${soundEnabled ? 'off' : 'on'}`}
+            aria-pressed={soundEnabled}
+            onClick={() => {
+              const nextEnabled = !soundEnabled
+              setSoundEnabled(nextEnabled)
+              setSoundEffectsEnabled(nextEnabled)
+            }}
+          >
+            SOUND {soundEnabled ? 'ON' : 'OFF'}
+          </button>
           {isSignedIn && !userLoading && user ? <span className="topbar-name" data-testid="nav-user-name">{user.name || user.email}</span> : null}
           {!isLoaded ? null : isSignedIn ? (
             <button className="topbar-action" type="button" onClick={() => void signOut()}>SIGN OUT</button>

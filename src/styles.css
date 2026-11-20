@@ -432,6 +432,7 @@ nav.app-topbar a.topbar-link.is-active { color: #E9E4D4; }
 .topbar-name { overflow: hidden; max-width: 220px; color: #E9E4D4; text-overflow: ellipsis; white-space: nowrap; }
 .topbar-action { flex: 0 0 auto; border: 1px solid #7FA7BE; border-radius: 999px; padding: 7px 11px; background: transparent; cursor: pointer; }
 nav.app-topbar button.topbar-action { color: #7FA7BE; }
+nav.app-topbar button.topbar-action[aria-pressed="true"] { border-color: #7FE3C4; color: #7FE3C4; }
 .app-topbar a:focus-visible { outline: 1px solid #A9CFE8; outline-offset: 3px; box-shadow: 0 0 8px rgb(169 207 232 / 35%); }
 .app-topbar button:focus-visible { outline: 1px solid #A9CFE8; outline-offset: 3px; }
 a:focus-visible { outline: 1px solid #A9CFE8; outline-offset: 3px; }
