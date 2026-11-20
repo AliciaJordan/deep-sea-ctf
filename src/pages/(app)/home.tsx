@@ -6,6 +6,7 @@ import { callCtfAction } from '../../lib/ctf-actions'
 import { DepthGauge, DepthRing } from '../../components/DepthRing'
 import { ScoreboardTable } from '../../components/ScoreboardTable'
 import { tallySolves } from '../../lib/solve-scoring'
+import { playSoundEffect } from '../../lib/sound-effects'
 
 type Challenge = { challengeId: string; title: string; category: string; difficulty: number; points: number; description: string }
 type Solve = { userId: string; challengeId: string; points: number; solvedAt: string }
@@ -191,7 +192,10 @@ export default function HomePage() {
                 className="sonar-reactivate"
                 disabled={loading || rescanning}
                 aria-busy={rescanning}
-                onClick={() => { void loadChallenges(true) }}
+                onClick={() => {
+                  playSoundEffect('sonar')
+                  void loadChallenges(true)
+                }}
               >
                 {rescanning ? 'SCANNING...' : 'REACTIVATE SONAR'}
               </button>
