@@ -18,9 +18,11 @@ Each player can submit up to five flag attempts per challenge in a rolling 60-se
 
 ## Create a challenge
 
-Sign in and open [Create a Challenge](https://deep-sea-ctf.app.space/submit-challenge). Provide a title, category, depth, challenge description, flag, and solution write-up. The server validates the submission and stores it as **pending**; it is not visible in the public library until approved.
+Sign in and open [Create a Challenge](https://deep-sea-ctf.app.space/submit-challenge). Provide a title, category, depth, challenge description, flag, solution write-up, and optionally up to three files. Attachments are limited to 2 MB each and PNG, JPG, WAV, TXT, CSV, or LOG. The server validates the submission and stores it as **pending**; it is not visible in the library until approved.
 
-The app owner reviews submissions in the [Admin page](https://deep-sea-ctf.app.space/admin), can inspect the write-up, and approves with a point value or rejects the submission. Approved challenges are published to the library and board. Authors can see their submission status. Their write-up is private to them and the owner while pending, then becomes available to other players after they solve the challenge.
+The app owner reviews submissions in the [Admin page](https://deep-sea-ctf.app.space/admin), can inspect the write-up and download attachments, and approves with a point value or rejects the submission. Approved challenges and their attachments become available to signed-in players. Authors can see their submission status and add files while a challenge is pending. Write-ups remain private to the author and owner until approval, then become available to players after they solve the challenge.
+
+Attachments are stored in DeepSpace app-scoped R2 storage with random keys. The Worker checks file extensions and contents, limits uploads to five per user per minute, and serves files only as authenticated downloads with `Content-Disposition: attachment` and `nosniff`. Files are not previewed in the app. **Files are submitted by other players. Open them in a VM or sandbox.**
 
 ## Pages
 
@@ -92,6 +94,7 @@ The live app is hosted at [deep-sea-ctf.app.space](https://deep-sea-ctf.app.spac
 ## Built with
 
 - **DeepSpace SDK** for app authentication, server actions, record storage, and real-time data synchronization.
+- **DeepSpace R2 file storage** via the Worker `appFiles` helper for private challenge attachments.
 - **Cloudflare Workers** with **Hono** for server-side routes and challenge-verification logic.
 - **React**, **React Router**, **Vite**, and **Tailwind CSS** for the web app.
 - **Vitest** and **Playwright** for unit, API, smoke, and end-to-end testing.

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { callCtfAction } from '../../../../lib/ctf-actions'
+import type { PublicChallengeAttachment } from '../../../../lib/community-attachments'
 import { DepthGauge, DepthRing } from '../../../../components/DepthRing'
 import { playSoundEffect } from '../../../../lib/sound-effects'
 
@@ -13,6 +14,7 @@ type Challenge = {
   description: string
   canSubmit?: boolean
   writeup?: string
+  attachments: PublicChallengeAttachment[]
 }
 const depths = ['', '10 m', '200 m', '1000 m', '4000 m']
 
@@ -63,6 +65,18 @@ export default function ChallengePage() {
           ? <a key={`${part}-${index}`} href={part} target="_blank" rel="noreferrer">{part}</a>
           : part,
       )}</p>
+      {challenge.attachments.length > 0 && <section aria-labelledby="challenge-files-heading">
+        <h2 id="challenge-files-heading" className="ctf-label">CHALLENGE FILES</h2>
+        <ul>{challenge.attachments.map((attachment) => <li key={attachment.attachmentId}>
+          <a
+            href={`/api/challenges/${encodeURIComponent(id)}/attachments/${encodeURIComponent(attachment.attachmentId)}`}
+            download
+          >
+            {attachment.name} ({attachment.size.toLocaleString()} bytes)
+          </a>
+        </li>)}</ul>
+        <p>Files are submitted by other players. Open them in a VM or sandbox.</p>
+      </section>}
       <p className="ctf-data">{challenge.points} POINTS</p>
       {challenge.canSubmit === false
         ? <p className="ctf-status">CHALLENGE AUTHORS CANNOT SUBMIT THEIR OWN FLAGS.</p>

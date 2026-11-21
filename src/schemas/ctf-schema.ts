@@ -66,6 +66,35 @@ export const attemptClaimsSchema: CollectionSchema = {
   permissions: { viewer: closed, player: closed, admin: closed },
 }
 
+export const challengeAttachmentsSchema: CollectionSchema = {
+  name: 'challengeAttachments',
+  columns: [
+    { name: 'challengeId', storage: 'text', interpretation: 'plain', required: true },
+    { name: 'uploadedBy', storage: 'text', interpretation: 'plain', userBound: true, required: true },
+    { name: 'slot', storage: 'number', interpretation: 'plain', required: true },
+    { name: 'key', storage: 'text', interpretation: 'plain', required: true },
+    { name: 'originalName', storage: 'text', interpretation: 'plain', required: true },
+    { name: 'contentType', storage: 'text', interpretation: 'plain', required: true },
+    { name: 'size', storage: 'number', interpretation: 'plain', required: true },
+    { name: 'ready', storage: 'number', interpretation: { kind: 'boolean' }, required: true },
+  ],
+  uniqueOn: ['challengeId', 'slot'],
+  permissions: { viewer: closed, player: closed, admin: closed },
+}
+
+export const attachmentUploadClaimsSchema: CollectionSchema = {
+  name: 'attachmentUploadClaims',
+  columns: [
+    { name: 'userId', storage: 'text', interpretation: 'plain', userBound: true, required: true },
+    { name: 'bucket', storage: 'number', interpretation: 'plain', required: true },
+    { name: 'slot', storage: 'number', interpretation: 'plain', required: true },
+    { name: 'ts', storage: 'text', interpretation: 'datetime', required: true },
+  ],
+  uniqueOn: ['userId', 'bucket', 'slot'],
+  ownerField: 'userId',
+  permissions: { viewer: closed, player: closed, admin: closed },
+}
+
 export const solvesSchema: CollectionSchema = {
   name: 'solves',
   columns: [

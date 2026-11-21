@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { AuthGate } from 'deepspace'
-import { callCtfAction } from '../../lib/ctf-actions'
+import { callCtfAction, uploadChallengeAttachment } from '../../lib/ctf-actions'
+import { MAX_CHALLENGE_ATTACHMENTS, type PublicChallengeAttachment } from '../../lib/community-attachments'
 
 type Challenge = {
   challengeId: string
@@ -15,6 +16,7 @@ type Challenge = {
   authorId?: string
   reviewStatus?: 'pending' | 'approved' | 'rejected'
   writeup?: string
+  attachments: PublicChallengeAttachment[]
 }
 
 function createEmptyForm() {
@@ -108,6 +110,26 @@ function AdminPanel() {
     }
   }
 
+  async function addAttachments(challenge: Challenge, files: File[]) {
+    const remaining = MAX_CHALLENGE_ATTACHMENTS - challenge.attachments.length
+    if (files.length > remaining) {
+      setError(`This challenge has room for ${remaining} more file${remaining === 1 ? '' : 's'}.`)
+      return
+    }
+    setBusy(true)
+    setError('')
+    try {
+      for (const file of files) await uploadChallengeAttachment(challenge.challengeId, file)
+      setNotice('FILES ADDED TO CHALLENGE.')
+      await reload()
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Unable to upload attachments.')
+      await reload()
+    } finally {
+      setBusy(false)
+    }
+  }
+
   if (denied) return <main className="ctf-shell"><p className="ctf-label" role="alert">403 / OWNER ACCESS ONLY</p></main>
 
   return <main className="ctf-shell">
@@ -139,6 +161,28 @@ function AdminPanel() {
           <summary>READ SUBMITTED SOLUTION</summary>
           <pre>{challenge.writeup || 'No solution write-up was provided.'}</pre>
         </details>
+        {challenge.attachments.length > 0 && <section aria-label="Challenge files">
+          <p className="ctf-label">CHALLENGE FILES</p>
+          <ul>{challenge.attachments.map((attachment) => <li key={attachment.attachmentId}>
+            <a href={`/api/challenges/${encodeURIComponent(challenge.challengeId)}/attachments/${encodeURIComponent(attachment.attachmentId)}`} download>
+              {attachment.name} ({attachment.size.toLocaleString()} bytes)
+            </a>
+          </li>)}</ul>
+          <p>Files are submitted by other players. Open them in a VM or sandbox.</p>
+        </section>}
+        {challenge.attachments.length < MAX_CHALLENGE_ATTACHMENTS && <label>
+          ADD FILES<input
+            type="file"
+            multiple
+            accept=".png,.jpg,.wav,.txt,.csv,.log"
+            disabled={busy}
+            onChange={(event) => {
+              const files = Array.from(event.currentTarget.files ?? [])
+              event.currentTarget.value = ''
+              void addAttachments(challenge, files)
+            }}
+          />
+        </label>}
         <div className="review-actions">
           <button type="button" disabled={busy} onClick={() => void review(challenge, 'approve')}>APPROVE &amp; PUBLISH</button>
           <button type="button" disabled={busy} onClick={() => void review(challenge, 'reject')}>REJECT</button>
