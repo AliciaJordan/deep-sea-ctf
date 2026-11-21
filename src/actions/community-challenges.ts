@@ -3,6 +3,7 @@ import type { Env } from '../../worker'
 import { isOwner } from './admin-challenges'
 import { flagMac } from '../lib/flag-mac'
 import { parseCommunityChallengeDraft } from '../lib/community-challenges'
+import { publicAttachments } from '../lib/community-attachments'
 
 export const createCommunityChallenge: ActionHandler<Env> = async ({ userId, params, tools, env }) => {
   if (!userId || userId.startsWith('anon-')) return { success: false, error: 'Sign in to submit a challenge.' }
@@ -47,6 +48,18 @@ export const myChallengeSubmissions: ActionHandler<Env> = async ({ userId, tools
     { where: { authorId: userId }, orderBy: 'createdAt', orderDir: 'desc', limit: 100 },
   )
   if (!result.success) return result
+  const foundAttachments = await tools.query<Record<string, unknown>>(
+    'challengeAttachments', { where: { uploadedBy: userId }, limit: 500 },
+  )
+  if (!foundAttachments.success) return foundAttachments
+  const attachmentMap = new Map<string, Array<{ recordId: string; data: Record<string, unknown> }>>()
+  for (const attachment of foundAttachments.data.records) {
+    const challengeId = attachment.data.challengeId
+    if (typeof challengeId !== 'string') continue
+    const records = attachmentMap.get(challengeId) ?? []
+    records.push(attachment)
+    attachmentMap.set(challengeId, records)
+  }
   return {
     success: true,
     data: {
@@ -55,6 +68,7 @@ export const myChallengeSubmissions: ActionHandler<Env> = async ({ userId, tools
         title: data.title,
         difficulty: data.difficulty,
         reviewStatus: data.reviewStatus,
+        attachments: publicAttachments(attachmentMap.get(recordId) ?? []),
       })),
     },
   }

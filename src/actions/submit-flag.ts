@@ -3,6 +3,7 @@ import type { ActionHandler } from 'deepspace/worker'
 import type { Env } from '../../worker'
 import { isOwner } from './admin-challenges'
 import { flagMac } from '../lib/flag-mac'
+import { publicAttachments } from '../lib/community-attachments'
 
 function isPublished(value: unknown): boolean {
   return value === true || value === 1
@@ -73,6 +74,11 @@ export const getChallenge: ActionHandler<Env> = async ({ userId, params, tools, 
     return { success: false, error: 'Challenge unavailable.' }
   }
 
+  const attachments = await tools.query<Record<string, unknown>>(
+    'challengeAttachments', { where: { challengeId }, limit: 3 },
+  )
+  if (!attachments.success) return attachments
+
   let canReadWriteup = isOwner(userId, env) || data.authorId === userId
   if (!canReadWriteup && typeof data.writeup === 'string') {
     const solved = await tools.query('solves', { where: { userId, challengeId }, limit: 1 })
@@ -91,6 +97,7 @@ export const getChallenge: ActionHandler<Env> = async ({ userId, params, tools, 
         points: data.points,
         description: data.description,
         canSubmit: data.authorId !== userId,
+        attachments: publicAttachments(attachments.data.records),
         ...(canReadWriteup && typeof data.writeup === 'string' ? { writeup: data.writeup } : {}),
       },
     },
