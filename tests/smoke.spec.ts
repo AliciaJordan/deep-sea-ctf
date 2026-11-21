@@ -63,6 +63,15 @@ test.describe('Smoke tests', () => {
     await expect(page.getByTestId('nav-user-name')).toHaveCount(0)
   })
 
+  test('signed-out discovery routes prompt visitors to sign in', async ({ page }) => {
+    for (const route of ['/home', '/library', '/scoreboard']) {
+      await page.goto(route)
+      await expect(page.getByTestId('signed-out-dive')).toBeVisible()
+      await expect(page.getByRole('heading', { name: 'Sign in to dive' })).toBeVisible()
+      await expect(page.getByTestId('signed-out-dive').getByRole('button', { name: 'SIGN IN' })).toBeVisible()
+    }
+  })
+
   test('unknown route shows 404', async ({ page }) => {
     await page.goto('/nonexistent-page-xyz')
     await waitForApp(page)

@@ -78,7 +78,7 @@ export default function SubmitChallengePage() {
       <label>Category<input required maxLength={80} value={form.category} onChange={(event) => setForm({ ...form, category: event.target.value })} /></label>
       <label>Depth<select value={form.difficulty} onChange={(event) => setForm({ ...form, difficulty: event.target.value })}>{[1, 2, 3, 4].map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
       <label className="admin-form-wide">Challenge description<textarea required maxLength={4000} value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} /></label>
-      <label>Flag<input required type="password" autoComplete="new-password" maxLength={512} value={form.flag} onChange={(event) => setForm({ ...form, flag: event.target.value })} /><small>Use the format ocean{`{...}`} with no spaces.</small></label>
+      <label>Flag<input required type="password" autoComplete="new-password" maxLength={512} value={form.flag} onChange={(event) => setForm({ ...form, flag: event.target.value })} /><small>Use the required flag format with no spaces.</small></label>
       <label className="admin-form-wide">Solution write-up<textarea required maxLength={8000} value={form.writeup} onChange={(event) => setForm({ ...form, writeup: event.target.value })} /><small>Only you and the reviewer can see this before approval. Players see it after solving.</small></label>
       <button type="submit" disabled={busy}>{busy ? 'SUBMITTING' : 'SUBMIT FOR REVIEW'}</button>
     </form>

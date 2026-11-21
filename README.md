@@ -6,9 +6,9 @@ Deep Sea CTF is a live, community-driven capture-the-flag game. Players explore 
 
 ## How to play
 
-1. Open the [challenge board](https://deep-sea-ctf.app.space/home) or browse the [challenge library](https://deep-sea-ctf.app.space/library). The library can be searched by title, category, and description, and filtered by category or depth.
+1. Sign in to dive, then open the [challenge board](https://deep-sea-ctf.app.space/home) or [challenge library](https://deep-sea-ctf.app.space/library). The library can be searched by title, category, and description, and filtered by category or depth.
 2. Select a released challenge to read its description and any linked files.
-3. Sign in, solve it, and submit the flag in the `ocean{...}` format.
+3. Solve it and submit the challenge's required flag.
 4. Correct submissions add the challenge's points to your score. The board and [scoreboard](https://deep-sea-ctf.app.space/scoreboard) update as solves are recorded.
 5. After solving a community challenge, you can read its solution write-up on the challenge page.
 
@@ -27,10 +27,10 @@ The app owner reviews submissions in the [Admin page](https://deep-sea-ctf.app.s
 | Page | URL | Access |
 | --- | --- | --- |
 | Landing page | `/` | Public |
-| Operations board and sonar | `/home` | Public |
-| Searchable challenge library | `/library` | Public |
+| Operations board and sonar | `/home` | Sign-in required |
+| Searchable challenge library | `/library` | Sign-in required |
 | Challenge details and flag submission | `/challenges/:id` | Sign-in required |
-| Scoreboard | `/scoreboard` | Public |
+| Scoreboard | `/scoreboard` | Sign-in required |
 | Create a challenge | `/submit-challenge` | Sign-in required |
 | Challenge administration and review | `/admin` | App owner only |
 
@@ -57,12 +57,10 @@ npm run login
 
 ### Environment and secrets
 
-The Worker uses two private runtime settings for challenge verification and starter-challenge loading:
+The Worker uses one private runtime setting for challenge verification:
 
 - `CTF_FLAG_HMAC_KEY` — required to create challenges and verify submitted flags.
-- `CTF_STARTER_FLAGS_B64` — private starter-flag configuration used by the owner-only **Load Starter Challenges** action.
-
-These values must remain server-side. Do not put them in frontend code, commit them, or paste their values into documentation. The app's starter flag configuration is intentionally not included in the repository. Manage app secrets through the DeepSpace secrets store; the CLI generates the ignored `.dev.vars` file for local development. Do not commit `.dev.vars`.
+This value must remain server-side. Do not put it in frontend code, commit it, or paste it into documentation. Manage app secrets through the DeepSpace secrets store; the CLI generates the ignored `.dev.vars` file for local development. Do not commit `.dev.vars`.
 
 ## Development commands
 
@@ -98,9 +96,9 @@ The live app is hosted at [deep-sea-ctf.app.space](https://deep-sea-ctf.app.spac
 - **React**, **React Router**, **Vite**, and **Tailwind CSS** for the web app.
 - **Vitest** and **Playwright** for unit, API, smoke, and end-to-end testing.
 
-The CTF uses DeepSpace records and server actions rather than exposing challenge secrets to the browser. Expected flags are stored as keyed HMAC verifiers; the flag itself is not returned by the challenge-list or challenge-detail actions. The owner-only admin actions handle challenge creation, publication, starter loading, and community review.
+The CTF uses DeepSpace records and server actions rather than exposing challenge secrets to the browser. Expected flags are stored as keyed HMAC verifiers; the flag itself is not returned by the challenge-list or challenge-detail actions. The owner-only admin actions handle challenge creation, publication, and community review.
 
-Google and Composio are explicitly configured in the integration proxy, but neither is currently part of the core CTF player workflow. The game does not require either integration.
+No third-party integrations are enabled; the game does not require external integrations.
 
 ## Project map
 
@@ -120,4 +118,4 @@ Google and Composio are explicitly configured in the integration proxy, but neit
 
 ## Current scope
 
-The core experience covers public challenge discovery, signed-in solving, server-side flag verification, live scoring, and owner-reviewed community submissions. Integrations such as Google and Composio are not used in that core flow. Production testing of a complete community-challenge submission and approval with separate player accounts should be done in a safe test environment rather than by adding test challenges to the public board.
+The core experience covers signed-in challenge discovery and solving, server-side flag verification, live scoring, and owner-reviewed community submissions. Production testing of a complete community-challenge submission and approval with separate player accounts should be done in a safe test environment rather than by adding test challenges to the live board.

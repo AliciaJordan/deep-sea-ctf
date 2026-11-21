@@ -2,6 +2,10 @@ import { describe, expect, it, vi } from 'vitest'
 import type { Env } from '../../worker'
 import { getChallenge, listChallenges, submitFlag } from './submit-flag'
 
+function randomFlag(): string {
+  return ['ocean', '{', crypto.randomUUID().replaceAll('-', ''), '}'].join('')
+}
+
 const challenge = {
   title: 'Lost Signal',
   category: 'FORENSICS',
@@ -95,7 +99,7 @@ describe('community challenge solution visibility', () => {
     const tools = toolsWithSolveCount(0, 'player-1')
     const result = await submitFlag({
       userId: 'player-1',
-      params: { challengeId: 'challenge-1', flag: ['ocean', '{', 'x'.repeat(8), '}'].join('') },
+      params: { challengeId: 'challenge-1', flag: randomFlag() },
       tools,
       env: { OWNER_USER_ID: 'owner-1', CTF_FLAG_HMAC_KEY: 'test-key' } as Env,
       callerJwt: 'player-token',
@@ -106,5 +110,64 @@ describe('community challenge solution visibility', () => {
       error: 'Challenge authors cannot submit their own flags.',
     })
     expect(tools.query).not.toHaveBeenCalled()
+  })
+})
+
+describe('flag submission idempotency', () => {
+  it('creates only one submission row for repeated correct flags', async () => {
+    const flag = randomFlag()
+    const key = crypto.randomUUID()
+    const cryptoKey = await crypto.subtle.importKey(
+      'raw', new TextEncoder().encode(key), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'],
+    )
+    const digest = await crypto.subtle.sign('HMAC', cryptoKey, new TextEncoder().encode(flag))
+    const flagMac = Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('')
+    const solves: Array<{ recordId: string; data: Record<string, unknown> }> = []
+    const submissions: Array<{ recordId: string; data: Record<string, unknown> }> = []
+    const claims: Array<{ recordId: string; data: Record<string, unknown> }> = []
+    let nextId = 0
+    const tools = {
+      get: vi.fn().mockResolvedValue({
+        success: true,
+        data: { record: { recordId: 'challenge-1', data: { ...challenge } } },
+      }),
+      query: vi.fn().mockImplementation(async (collection: string, options?: { where?: Record<string, unknown> }) => {
+        const records = collection === 'challengeSecrets'
+          ? [{ recordId: 'secret-1', data: { challengeId: 'challenge-1', flagMac } }]
+          : collection === 'solves'
+            ? solves.filter(({ data }) =>
+                !options?.where || Object.entries(options.where).every(([field, value]) => data[field] === value),
+              )
+            : claims
+        return { success: true, data: { records, count: records.length } }
+      }),
+      create: vi.fn().mockImplementation(async (collection: string, data: Record<string, unknown>) => {
+        const record = { recordId: `${collection}-${++nextId}`, data }
+        if (collection === 'solves') solves.push(record)
+        if (collection === 'submissions') submissions.push(record)
+        if (collection === 'attemptClaims') claims.push(record)
+        return { success: true, data: { recordId: record.recordId } }
+      }),
+      remove: vi.fn().mockImplementation(async (_collection: string, recordId: string) => {
+        const index = claims.findIndex((claim) => claim.recordId === recordId)
+        if (index >= 0) claims.splice(index, 1)
+        return { success: true, data: { recordId } }
+      }),
+    } as unknown as Parameters<typeof submitFlag>[0]['tools']
+
+    const args = {
+      userId: 'player-1',
+      params: { challengeId: 'challenge-1', flag },
+      tools,
+      env: { OWNER_USER_ID: 'owner-1', CTF_FLAG_HMAC_KEY: key } as Env,
+      callerJwt: 'player-token',
+    }
+
+    const first = await submitFlag(args)
+    const repeated = await submitFlag(args)
+
+    expect(first).toMatchObject({ success: true, data: { correct: true, alreadySolved: false } })
+    expect(repeated).toMatchObject({ success: true, data: { correct: true, alreadySolved: true } })
+    expect(submissions).toHaveLength(1)
   })
 })

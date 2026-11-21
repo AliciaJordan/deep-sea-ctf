@@ -1,8 +1,8 @@
-import { test, expect } from '@playwright/test'
+import { test, expect, loadAllTestAccounts } from 'deepspace/testing'
 import { canCreate, canRead, canUpdate } from 'deepspace/worker'
 import type { ActionTools } from 'deepspace/worker'
 import type { Env } from '../worker'
-import { adminListChallenges, createChallenge, seedStarterChallenges, setPublished } from '../src/actions/admin-challenges'
+import { adminListChallenges, createChallenge, setPublished } from '../src/actions/admin-challenges'
 import { listChallenges, submitFlag } from '../src/actions/submit-flag'
 import { challengesSchema, challengeSecretsSchema, solvesSchema, submissionsSchema } from '../src/schemas/ctf-schema'
 import { usersSchema } from '../src/schemas/users-schema'
@@ -15,7 +15,55 @@ function row(data: Record<string, unknown>, createdBy = ownerId) {
   return { data, createdBy, recordId: 'test-row' }
 }
 
+function randomFlag(): string {
+  return ['flag', '{', crypto.randomUUID(), '}'].join('')
+}
+
 test.describe('API tests', () => {
+  test('rejects unlisted integration endpoints for signed-in non-owners', async ({ users, request }) => {
+    const availableAccounts = loadAllTestAccounts().length
+    test.skip(availableAccounts === 0, 'Create a DeepSpace test account to run authenticated API tests.')
+
+    const testUsers = await users(availableAccounts)
+    let nonOwnerHeaders: Record<string, string> | null = null
+    for (const user of testUsers) {
+      await user.page.goto('/home')
+      await expect(user.page.getByTestId('nav-user-name')).toHaveText(/\S/, { timeout: 15_000 })
+
+      const token = await user.page.evaluate(async () => {
+        const response = await fetch('/api/auth/token', {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+        })
+        if (!response.ok) return null
+        const body = await response.json() as { token?: string }
+        return body.token ?? null
+      })
+      expect(token).toBeTruthy()
+      const headers = { Authorization: `Bearer ${token}` }
+      const ownerCheck = await request.post('/api/actions/isOwner', { headers, data: {} })
+      expect(ownerCheck.ok()).toBe(true)
+      const ownerResult = await ownerCheck.json() as { success: boolean; data: boolean }
+      expect(ownerResult.success).toBe(true)
+      if (!ownerResult.data) {
+        nonOwnerHeaders = headers
+        break
+      }
+    }
+    if (!nonOwnerHeaders) {
+      test.skip(true, 'The available test accounts do not include a non-owner.')
+      return
+    }
+
+    const response = await request.post('/api/integrations/unlisted/test-endpoint', {
+      headers: nonOwnerHeaders,
+      data: {},
+    })
+    expect(response.status()).toBe(403)
+    expect(await response.json()).toEqual({ error: 'Integration endpoint is not allowed' })
+  })
+
   test('auth proxy forwards to auth worker', async ({ request }) => {
     const res = await request.get('/api/auth/ok')
     expect(res.ok()).toBeTruthy()
@@ -33,11 +81,13 @@ test.describe('API tests', () => {
 
   test('10 parallel correct submissions count one solve and award points once', async () => {
     const key = 'test-hmac-key'
+    const correctFlag = randomFlag()
     const cryptoKey = await crypto.subtle.importKey('raw', new TextEncoder().encode(key), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'])
-    const digest = await crypto.subtle.sign('HMAC', cryptoKey, new TextEncoder().encode('flag{correct}'))
+    const digest = await crypto.subtle.sign('HMAC', cryptoKey, new TextEncoder().encode(correctFlag))
     const expectedMac = Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('')
     const challengeId = 'challenge-one'
     const storedSolves: Array<{ recordId: string; data: Record<string, unknown> }> = []
+    const storedSubmissions: Array<{ recordId: string; data: Record<string, unknown> }> = []
     let ownSolveReads = 0
     let releaseOwnReads!: () => void
     const allOwnReads = new Promise<void>((resolve) => { releaseOwnReads = resolve })
@@ -48,22 +98,31 @@ test.describe('API tests', () => {
         data: { published: 1, releaseAt: '2020-01-01T00:00:00.000Z', points: 100 },
       } } }),
       query: async (collection: string, options: { where?: Record<string, unknown> } = {}) => {
-        if (collection === 'submissions') return { success: true, data: { records: [], count: 0 } }
         if (collection === 'challengeSecrets') return { success: true, data: { records: [{
           recordId: 'secret-one', data: { challengeId, flagMac: expectedMac },
         }], count: 1 } }
         if (collection === 'solves' && options.where?.userId === playerId) {
-          ownSolveReads++
-          if (ownSolveReads === 10) releaseOwnReads()
-          await allOwnReads
-          return { success: true, data: { records: [], count: 0 } }
+          if (ownSolveReads < 10) {
+            ownSolveReads++
+            if (ownSolveReads === 10) releaseOwnReads()
+            await allOwnReads
+            return { success: true, data: { records: [], count: 0 } }
+          }
+          const own = storedSolves.filter(({ data }) => data.userId === playerId)
+          return { success: true, data: { records: own, count: own.length } }
         }
         return { success: true, data: { records: storedSolves.map((record) => ({ ...record })), count: storedSolves.length } }
       },
       create: async (collection: string, data: Record<string, unknown>) => {
         recordNumber++
         const recordId = `${collection}-${recordNumber}`
-        if (collection === 'solves') storedSolves.push({ recordId, data: { ...data, firstSolve: false } })
+        if (collection === 'solves') {
+          if (storedSolves.some((solve) => solve.data.userId === data.userId && solve.data.challengeId === data.challengeId)) {
+            return { success: false, error: 'Duplicate solve.' }
+          }
+          storedSolves.push({ recordId, data: { ...data, firstSolve: false } })
+        }
+        if (collection === 'submissions') storedSubmissions.push({ recordId, data: { ...data } })
         return { success: true, data: { recordId } }
       },
       remove: async (_collection: string, recordId: string) => ({ success: true, data: { recordId } }),
@@ -71,7 +130,7 @@ test.describe('API tests', () => {
 
     const results = await Promise.all(Array.from({ length: 10 }, () => submitFlag({
       userId: playerId,
-      params: { challengeId, flag: '  flag{correct}  ' },
+      params: { challengeId, flag: `  ${correctFlag}  ` },
       tools,
       env: { CTF_FLAG_HMAC_KEY: key } as Env,
       callerJwt: 'test-token',
@@ -84,6 +143,7 @@ test.describe('API tests', () => {
     expect(results.every((result) => result.success)).toBe(true)
     expect(counted.countedSolves).toHaveLength(1)
     expect(counted.totals.get(playerId)).toBe(100)
+    expect(storedSubmissions).toHaveLength(1)
   })
 
   test('player collection reads and writes are restricted; owner retains admin challenge access', () => {
@@ -109,7 +169,7 @@ test.describe('API tests', () => {
 
   test('admin challenge actions deny non-owners and keep flags and MACs private', async () => {
     const key = 'test-hmac-key'
-    const flag = 'flag{owner-created}'
+    const flag = randomFlag()
     const challengeRecords: Array<{ recordId: string; data: Record<string, unknown> }> = []
     const secretRecords: Array<{ recordId: string; data: Record<string, unknown> }> = []
     const submissionRecords: Array<{ recordId: string; data: Record<string, unknown> }> = []
@@ -174,9 +234,9 @@ test.describe('API tests', () => {
     const visible = await listChallenges({ userId: playerId, params: {}, tools, env, callerJwt: 'player-token' })
     expect((visible as { data: { challenges: unknown[] } }).data.challenges).toHaveLength(1)
     const correct = await submitFlag({ userId: playerId, params: { challengeId, flag }, tools, env, callerJwt: 'player-token' })
-    const wrong = await submitFlag({ userId: playerId, params: { challengeId, flag: 'flag{wrong}' }, tools, env, callerJwt: 'player-token' })
+    const wrong = await submitFlag({ userId: playerId, params: { challengeId, flag: randomFlag() }, tools, env, callerJwt: 'player-token' })
     expect(correct.success).toBe(true)
-    expect(wrong.success).toBe(true)
+    expect(wrong).toMatchObject({ success: true, data: { correct: true, alreadySolved: true } })
     expect(JSON.stringify([created, adminList, hidden, publishResult, visible, correct, wrong])).not.toContain(flag)
     expect(JSON.stringify([created, adminList, hidden, publishResult, visible, correct, wrong])).not.toContain(mac)
   })
@@ -195,82 +255,6 @@ test.describe('API tests', () => {
       userId: playerId, params: {}, tools, env: {} as Env, callerJwt: 'player-token',
     })
     expect(result.success && result.data?.challenges.map((challenge) => challenge.title)).toEqual(['Released'])
-  })
-
-  test('owner can load starter challenges once and submit the private log flag', async () => {
-    const key = 'test-hmac-key'
-    const challenges: Array<{ recordId: string; data: Record<string, unknown> }> = []
-    const secrets: Array<{ recordId: string; data: Record<string, unknown> }> = []
-    const solves: Array<{ recordId: string; data: Record<string, unknown> }> = []
-    const otherRecords = new Map<string, Array<{ recordId: string; data: Record<string, unknown> }>>()
-    let nextId = 0
-    const rows = (collection: string) => collection === 'challenges' ? challenges
-      : collection === 'challengeSecrets' ? secrets
-        : collection === 'solves' ? solves
-          : otherRecords.get(collection) ?? []
-    const tools = {
-      create: async (collection: string, data: Record<string, unknown>, recordId?: string) => {
-        const collectionRows = rows(collection)
-        if (recordId && collectionRows.some((record) => record.recordId === recordId)) {
-          return { success: false, error: 'Duplicate record ID.' }
-        }
-        const record = { recordId: recordId ?? `record-${++nextId}`, data: { ...data } }
-        if (collection === 'challengeSecrets' && secrets.some((item) => item.data.challengeId === data.challengeId)) {
-          return { success: false, error: 'Duplicate challenge secret.' }
-        }
-        if (collection === 'solves' && solves.some((item) =>
-          item.data.userId === data.userId && item.data.challengeId === data.challengeId,
-        )) return { success: false, error: 'Duplicate solve.' }
-        if (!otherRecords.has(collection) && !['challenges', 'challengeSecrets', 'solves'].includes(collection)) {
-          otherRecords.set(collection, [])
-        }
-        collectionRows.push(record)
-        return { success: true, data: { recordId: record.recordId } }
-      },
-      get: async (collection: string, recordId: string) => {
-        const record = rows(collection).find((item) => item.recordId === recordId)
-        return record ? { success: true, data: { record } } : { success: false, error: 'Not found' }
-      },
-      query: async (collection: string, options: { where?: Record<string, unknown> } = {}) => {
-        const records = rows(collection).filter(({ data }) =>
-          !options.where || Object.entries(options.where).every(([field, value]) => data[field] === value),
-        )
-        return { success: true, data: { records: [...records], count: records.length } }
-      },
-      remove: async (collection: string, recordId: string) => {
-        const collectionRows = rows(collection)
-        const index = collectionRows.findIndex((record) => record.recordId === recordId)
-        if (index >= 0) collectionRows.splice(index, 1)
-        return { success: true, data: { recordId } }
-      },
-    } as unknown as ActionTools
-    const env = { OWNER_USER_ID: ownerId, CTF_FLAG_HMAC_KEY: key } as Env
-    const denied = await seedStarterChallenges({ userId: playerId, params: {}, tools, env, callerJwt: 'player-token' })
-    expect(denied.success).toBe(false)
-    expect(challenges).toHaveLength(0)
-
-    const seeded = await seedStarterChallenges({ userId: ownerId, params: {}, tools, env, callerJwt: 'owner-token' })
-    const seededAgain = await seedStarterChallenges({ userId: ownerId, params: {}, tools, env, callerJwt: 'owner-token' })
-    expect(seeded).toEqual({ success: true, data: { created: 3, total: 3 } })
-    expect(seededAgain).toEqual({ success: true, data: { created: 0, total: 3 } })
-    expect(challenges).toHaveLength(3)
-    expect(secrets).toHaveLength(3)
-
-    const visible = await listChallenges({ userId: playerId, params: {}, tools, env, callerJwt: 'player-token' })
-    expect(visible.success && visible.data?.challenges).toHaveLength(3)
-    const logChallenge = challenges.find(({ recordId }) => recordId === 'starter-radio-operators-log')
-    expect(logChallenge).toBeDefined()
-    const solved = await submitFlag({
-      userId: playerId,
-      params: { challengeId: 'starter-radio-operators-log', flag: 'ocean{distant-buoy-7b0c11}' },
-      tools,
-      env,
-      callerJwt: 'player-token',
-    })
-    expect(solved).toEqual({ success: true, data: { correct: true, alreadySolved: false } })
-    expect(solves).toHaveLength(1)
-    expect(JSON.stringify([seeded, seededAgain, visible, challenges, secrets, solved]))
-      .not.toContain('ocean{distant-buoy-7b0c11}')
   })
 
   test('parallel wrong submissions cannot reserve more than five attempts in one minute', async () => {
@@ -308,7 +292,7 @@ test.describe('API tests', () => {
 
     const results = await Promise.all(Array.from({ length: 10 }, () => submitFlag({
       userId: playerId,
-      params: { challengeId, flag: 'flag{wrong}' },
+      params: { challengeId, flag: randomFlag() },
       tools,
       env: { CTF_FLAG_HMAC_KEY: 'test-hmac-key' } as Env,
       callerJwt: 'player-token',
