@@ -1,6 +1,18 @@
 /** Human-facing product name. The platform app id remains in wrangler.toml. */
 export const APP_NAME = 'Deep Sea CTF'
 
+export const CHALLENGE_CATEGORIES = [
+  'BINARY EXPLOITATION',
+  'CRYPTO',
+  'FORENSICS',
+  'HACKING',
+  'MISC',
+  'OSINT',
+  'REVERSE ENGINEERING',
+  'STEGANOGRAPHY',
+  'WEB',
+] as const
+
 /** Immutable app identity — data scope keys to this, so renames never
  *  strand your records.
  *

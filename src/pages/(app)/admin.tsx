@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { AuthGate } from 'deepspace'
+import { CHALLENGE_CATEGORIES } from '../../constants'
 import { callCtfAction, uploadChallengeAttachment } from '../../lib/ctf-actions'
 import { MAX_CHALLENGE_ATTACHMENTS, type PublicChallengeAttachment } from '../../lib/community-attachments'
 
@@ -192,7 +193,10 @@ function AdminPanel() {
     </section>
     <form className="admin-form" onSubmit={create}>
       <label>Title<input required maxLength={120} value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></label>
-      <label>Category<input required maxLength={80} value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} /></label>
+      <label>Category<select required value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}>
+        <option value="" disabled>Select a category</option>
+        {CHALLENGE_CATEGORIES.map((category) => <option key={category} value={category}>{category}</option>)}
+      </select></label>
       <label>Depth<select value={form.difficulty} onChange={(e) => setForm({ ...form, difficulty: e.target.value })}>{[1, 2, 3, 4].map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
       <label>Points<input required type="number" min={0} max={1000} value={form.points} onChange={(e) => setForm({ ...form, points: e.target.value })} /></label>
       <label className="admin-form-wide">Description<textarea required maxLength={4000} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></label>

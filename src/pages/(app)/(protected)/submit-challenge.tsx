@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
+import { CHALLENGE_CATEGORIES } from '../../../constants'
 import { callCtfAction, uploadChallengeAttachment } from '../../../lib/ctf-actions'
 import { MAX_CHALLENGE_ATTACHMENTS, type PublicChallengeAttachment } from '../../../lib/community-attachments'
 import { DepthGauge } from '../../../components/DepthRing'
@@ -110,7 +111,10 @@ export default function SubmitChallengePage() {
     {notice && <p role="status" className="ctf-status">{notice}</p>}
     <form className="admin-form community-form" onSubmit={submit}>
       <label>Title<input required maxLength={120} value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} /></label>
-      <label>Category<input required maxLength={80} value={form.category} onChange={(event) => setForm({ ...form, category: event.target.value })} /></label>
+      <label>Category<select required value={form.category} onChange={(event) => setForm({ ...form, category: event.target.value })}>
+        <option value="" disabled>Select a category</option>
+        {CHALLENGE_CATEGORIES.map((category) => <option key={category} value={category}>{category}</option>)}
+      </select></label>
       <label>Depth<select value={form.difficulty} onChange={(event) => setForm({ ...form, difficulty: event.target.value })}>{[1, 2, 3, 4].map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
       <label className="admin-form-wide">Challenge description<textarea required maxLength={4000} value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} /></label>
       <label>Flag<input required type="password" autoComplete="new-password" maxLength={512} value={form.flag} onChange={(event) => setForm({ ...form, flag: event.target.value })} /><small>Use the required flag format with no spaces.</small></label>
