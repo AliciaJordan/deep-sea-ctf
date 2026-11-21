@@ -16,20 +16,42 @@ type Challenge = {
   writeup?: string
   attachments: PublicChallengeAttachment[]
 }
+type LoadState = 'loading' | 'ready' | 'empty' | 'error'
 const depths = ['', '10 m', '200 m', '1000 m', '4000 m']
 
 export default function ChallengePage() {
   const { id = '' } = useParams()
   const [challenge, setChallenge] = useState<Challenge | null>(null)
+  const [loadState, setLoadState] = useState<LoadState>('loading')
+  const [loadError, setLoadError] = useState('')
   const [flag, setFlag] = useState('')
   const [status, setStatus] = useState('')
   const [busy, setBusy] = useState(false)
   const [pingState, setPingState] = useState<'correct' | 'wrong' | null>(null)
   const [pingKey, setPingKey] = useState(0)
   useEffect(() => {
+    let active = true
+    setChallenge(null)
+    setLoadState('loading')
+    setLoadError('')
+    setStatus('')
     void callCtfAction<{ challenge: Challenge }>('getChallenge', { challengeId: id })
-      .then(({ challenge }) => setChallenge(challenge))
-      .catch((error: unknown) => setStatus(error instanceof Error ? error.message : 'Unable to load challenge.'))
+      .then(({ challenge }) => {
+        if (!active) return
+        setChallenge(challenge)
+        setLoadState('ready')
+      })
+      .catch((error: unknown) => {
+        if (!active) return
+        const message = error instanceof Error ? error.message : 'Unable to load challenge.'
+        if (message === 'Challenge unavailable.') {
+          setLoadState('empty')
+          return
+        }
+        setLoadError(message)
+        setLoadState('error')
+      })
+    return () => { active = false }
   }, [id])
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
@@ -37,14 +59,28 @@ export default function ChallengePage() {
     setBusy(true)
     setStatus('')
     try {
-      const result = await callCtfAction<{ correct: boolean; alreadySolved?: boolean; writeup?: string }>(
+      const result = await callCtfAction<{
+        correct: boolean
+        alreadySolved?: boolean
+        writeup?: string
+        attemptsRemaining?: number
+        retryAt?: string
+      }>(
         'submitFlag',
         { challengeId: id, flag },
       )
       playSoundEffect(result.correct ? 'correct' : 'incorrect')
       setPingState(result.correct ? 'correct' : 'wrong')
       setPingKey((key) => key + 1)
-      setStatus(result.correct ? (result.alreadySolved ? 'Already recorded.' : 'Correct. Solve recorded.') : 'Incorrect flag.')
+      if (result.correct) {
+        setStatus(result.alreadySolved ? 'Already recorded.' : 'Correct. Solve recorded.')
+      } else if (result.attemptsRemaining === 0 && result.retryAt) {
+        setStatus(`Incorrect flag. No attempts left; try again after ${result.retryAt} (UTC).`)
+      } else if (typeof result.attemptsRemaining === 'number') {
+        setStatus(`Incorrect flag. ${result.attemptsRemaining} attempt${result.attemptsRemaining === 1 ? '' : 's'} remaining.`)
+      } else {
+        setStatus('Incorrect flag.')
+      }
       if (result.writeup) setChallenge((current) => current ? { ...current, writeup: result.writeup } : current)
       setFlag('')
     } catch (error) {
@@ -57,7 +93,7 @@ export default function ChallengePage() {
   return <main className="ctf-shell ctf-detail">
     <DepthGauge />
     <div className="detail-nav"><Link className="ctf-back" to="/home">← BOARD</Link><Link className="ctf-back" to="/library">LIBRARY</Link></div>
-    {challenge ? <>
+    {loadState === 'ready' && challenge ? <>
       <p className="ctf-label detail-depth"><DepthRing />{challenge.category} / DEPTH {depths[challenge.difficulty]}</p>
       <h1>{challenge.title}</h1>
       <p className="ctf-description">{challenge.description.split(/(\/(?:challenges|files)\/[a-z0-9._-]+)/g).map((part, index) =>
@@ -90,6 +126,8 @@ export default function ChallengePage() {
         <h2 id="solution-heading" className="ctf-label">SOLUTION DEBRIEF</h2>
         <p>{challenge.writeup}</p>
       </section>}
-    </> : status ? <p>{status}</p> : <div className="ctf-loading"><DepthRing state="loading" /><span className="ctf-label">LOCATING SIGNAL</span></div>}
+    </> : loadState === 'loading' ? <div className="ctf-loading" role="status"><DepthRing state="loading" /><span className="ctf-label">LOCATING SIGNAL</span></div>
+      : loadState === 'empty' ? <p className="ctf-empty" role="status">No released challenge matches this signal.</p>
+        : <p className="ctf-status" role="alert">{loadError}</p>}
   </main>
 }

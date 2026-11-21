@@ -14,7 +14,7 @@
  *     about.html at /about (200) — a nested file would 307 /about → /about/
  *     and contradict the page's canonical URL.
  *   - `_spa.html`, the untouched empty shell. src/server/http-routes.ts serves
- *     it for client routes (/home, /settings, …) so a refresh there never
+ *     it for client routes (/home, /admin, …) so a refresh there never
  *     paints the landing page or hands crawlers the `/` canonical.
  *   - `sitemap.xml`, and the `Sitemap:` line appended to public/robots.txt's
  *     copy. With `noindex`, allow crawling of the removal directive and omit

@@ -1,4 +1,5 @@
 import type { ActionHandler } from 'deepspace/worker'
+import { appFiles } from 'deepspace/worker'
 import type { Env } from '../../worker'
 import { isOwner } from './admin-challenges'
 import { flagMac } from '../lib/flag-mac'
@@ -106,4 +107,51 @@ export const reviewCommunityChallenge: ActionHandler<Env> = async ({ userId, par
   const result = await tools.update('challenges', challengeId, update)
   if (!result.success) return result
   return { success: true, data: { challengeId, reviewStatus: update.reviewStatus, published: decision === 'approve' } }
+}
+
+export const deleteRejectedChallenge: ActionHandler<Env> = async ({ userId, params, tools, env }) => {
+  if (!isOwner(userId, env)) return { success: false, error: 'Forbidden.' }
+  const challengeId = typeof params.challengeId === 'string' ? params.challengeId.trim() : ''
+  if (!challengeId) return { success: false, error: 'Challenge is required.' }
+
+  const challenge = await tools.get<Record<string, unknown>>('challenges', challengeId)
+  if (!challenge.success || challenge.data.record.data.reviewStatus !== 'rejected') {
+    return { success: false, error: 'Rejected challenge not found.' }
+  }
+
+  const attachments = await tools.query<Record<string, unknown>>(
+    'challengeAttachments', { where: { challengeId }, limit: 10 },
+  )
+  if (!attachments.success) return attachments
+  const secrets = await tools.query<Record<string, unknown>>(
+    'challengeSecrets', { where: { challengeId }, limit: 2 },
+  )
+  if (!secrets.success) return secrets
+  if (secrets.data.records.length > 1) {
+    return { success: false, error: 'Challenge verification data is inconsistent.' }
+  }
+
+  for (const attachment of attachments.data.records) {
+    const key = attachment.data.key
+    const uploadedBy = attachment.data.uploadedBy
+    if (typeof key !== 'string' || typeof uploadedBy !== 'string') {
+      return { success: false, error: 'Challenge attachment details are unavailable.' }
+    }
+    try {
+      await appFiles(env, { scope: 'self', userId: uploadedBy }).delete(key)
+    } catch (error) {
+      console.error(`Could not delete rejected challenge attachment ${attachment.recordId}:`, error)
+      return { success: false, error: 'Could not delete challenge files.' }
+    }
+    const removed = await tools.remove('challengeAttachments', attachment.recordId)
+    if (!removed.success) return removed
+  }
+
+  if (secrets.data.records[0]) {
+    const removed = await tools.remove('challengeSecrets', secrets.data.records[0].recordId)
+    if (!removed.success) return removed
+  }
+  const removed = await tools.remove('challenges', challengeId)
+  if (!removed.success) return removed
+  return { success: true, data: { challengeId } }
 }

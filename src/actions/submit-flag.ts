@@ -14,7 +14,12 @@ async function reserveAttempt(
   challengeId: string,
   now: number,
   tools: Parameters<ActionHandler<Env>>[0]['tools'],
-): Promise<{ success: true; recordId: string } | { success: false; error: string }> {
+): Promise<{
+  success: true
+  recordId: string
+  attemptsRemaining: number
+  retryAt?: string
+} | { success: false; error: string }> {
   const bucket = Math.floor(now / 60_000)
   const ts = new Date(now).toISOString()
 
@@ -29,16 +34,39 @@ async function reserveAttempt(
     const stale = recent.data.records.filter(({ data }) => now - Date.parse(data.ts) >= 60_000)
     await Promise.all(stale.map(({ recordId }) => tools.remove('attemptClaims', recordId)))
     const active = recent.data.records.filter(({ data }) => now - Date.parse(data.ts) < 60_000)
-    if (active.length >= 5) return { success: false, error: 'Attempt limit reached. Try again in a minute.' }
+    if (active.length >= 5) {
+      const retryAt = Math.min(...active.map(({ data }) => Date.parse(data.ts))) + 60_000
+      return {
+        success: false,
+        error: `Attempt limit reached. Try again after ${new Date(retryAt).toISOString()} (UTC).`,
+      }
+    }
 
     const occupied = new Set(active
       .filter(({ data }) => data.bucket === bucket)
       .map(({ data }) => data.slot))
     const slot = [0, 1, 2, 3, 4].find((candidate) => !occupied.has(candidate))
-    if (slot === undefined) return { success: false, error: 'Attempt limit reached. Try again in a minute.' }
+    if (slot === undefined) {
+      const retryAt = Math.min(...active.map(({ data }) => Date.parse(data.ts))) + 60_000
+      return {
+        success: false,
+        error: `Attempt limit reached. Try again after ${new Date(retryAt).toISOString()} (UTC).`,
+      }
+    }
 
     const claim = await tools.create('attemptClaims', { userId, challengeId, bucket, slot, ts })
-    if (claim.success) return { success: true, recordId: claim.data.recordId }
+    if (claim.success) {
+      const attemptsRemaining = 4 - active.length
+      const retryAt = attemptsRemaining === 0
+        ? new Date(Math.min(now, ...active.map(({ data }) => Date.parse(data.ts))) + 60_000).toISOString()
+        : undefined
+      return {
+        success: true,
+        recordId: claim.data.recordId,
+        attemptsRemaining,
+        ...(retryAt ? { retryAt } : {}),
+      }
+    }
   }
 
   return { success: false, error: 'Could not reserve a submission attempt. Please retry.' }
@@ -147,7 +175,14 @@ export const submitFlag: ActionHandler<Env> = async ({ userId, params, tools, en
   if (!correct) {
     const submission = await tools.create('submissions', { userId, challengeId, correct, ts })
     if (!submission.success) return submission
-    return { success: true, data: { correct: false } }
+    return {
+      success: true,
+      data: {
+        correct: false,
+        attemptsRemaining: reservation.attemptsRemaining,
+        ...(reservation.retryAt ? { retryAt: reservation.retryAt } : {}),
+      },
+    }
   }
 
   const priorSolves = await tools.query('solves', { where: { challengeId }, orderBy: 'solvedAt', orderDir: 'asc', limit: 1 })

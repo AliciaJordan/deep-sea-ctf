@@ -111,7 +111,7 @@ function HomeBoard() {
   const knownChallengeIds = useRef(new Set<string>())
   const seenSolveIds = useRef<Set<string> | null>(null)
   const bloomTimers = useRef<number[]>([])
-  const { records: solves, status: solvesStatus } = useQuery<Solve>('solves', { orderBy: 'solvedAt', orderDir: 'asc' })
+  const { records: solves, status: solvesStatus, error: solvesError } = useQuery<Solve>('solves', { orderBy: 'solvedAt', orderDir: 'asc' })
   const { users } = useUsers()
   const loadChallenges = useCallback(async (reactivate = false) => {
     if (reactivate) {
@@ -181,9 +181,9 @@ function HomeBoard() {
         <h1>Deep Sea CTF</h1>
         <p className="ctf-subtitle">Recover the signal. Record each solve.</p>
         <div className="ctf-readout" aria-label="Live operation summary">
-          <div className="ctf-readout-cell"><strong>{challenges.length}</strong><span>RELEASED CONTACTS</span></div>
-          <div className="ctf-readout-cell"><strong>{scoring.countedSolves.length}</strong><span>SOLVES RECORDED</span></div>
-          <div className="ctf-readout-cell"><strong>{scoreboard.length}</strong><span>OPERATORS SCORING</span></div>
+          <div className="ctf-readout-cell"><strong>{loading ? '—' : challenges.length}</strong><span>RELEASED CONTACTS</span></div>
+          <div className="ctf-readout-cell"><strong>{solvesStatus === 'ready' ? scoring.countedSolves.length : '—'}</strong><span>SOLVES RECORDED</span></div>
+          <div className="ctf-readout-cell"><strong>{solvesStatus === 'ready' ? scoreboard.length : '—'}</strong><span>OPERATORS SCORING</span></div>
         </div>
       </header>
       <div className="ctf-columns">
@@ -219,7 +219,7 @@ function HomeBoard() {
                 <span><i className="scope-legend-dot scope-legend-dot--solved" />LOGGED</span>
               </div>
             </div>
-            <SonarScope challenges={challenges} solvedIds={solvedIds} bloomIds={bloomIds} scanCycle={scanCycle} />
+            <SonarScope challenges={challenges} solvedIds={solvesStatus === 'ready' ? solvedIds : new Set<string>()} bloomIds={bloomIds} scanCycle={scanCycle} />
             {loading && <SignalState state="loading" />}
             {!loading && !challenges.length && <SignalState state={error ? 'error' : 'empty'} detail={error} />}
             {!!challenges.length && <div className="sonar-ticker" role="log" aria-live="polite" aria-label="Recent contact log">
@@ -251,7 +251,7 @@ function HomeBoard() {
             })}
           </div>}
         </section>
-        <ScoreboardTable scores={scoreboard} users={users} />
+        <ScoreboardTable scores={scoreboard} users={users} status={solvesStatus} error={solvesError} />
       </div>
     </div>
   )

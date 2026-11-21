@@ -32,9 +32,19 @@ test.describe('Smoke tests', () => {
     // canonical, because React 19 would not dedupe against them on mount.
     await page.goto('/')
     await expect(page.getByTestId('static-landing')).toBeVisible()
-    await expect(page).toHaveTitle(/\S/)
+    await expect(page).toHaveTitle('Deep Sea CTF')
     expect(await page.locator('head meta[name="description"]').count()).toBe(1)
     expect(await page.locator('head link[rel="canonical"]').count()).toBe(1)
+    await expect(page.locator('head link[rel="icon"]')).toHaveAttribute('href', '/favicon.svg')
+  })
+
+  test('landing explains how to play', async ({ page }) => {
+    await page.goto('/')
+    const guide = page.getByRole('region', { name: 'How to play' })
+    await expect(guide.getByRole('listitem')).toHaveCount(3)
+    await expect(guide).toContainText('Sign in')
+    await expect(guide).toContainText('Pick a challenge')
+    await expect(guide).toContainText('ocean{...}')
   })
 
   test('static contract: landing fires no auth request, opens no websocket', async ({ page }) => {
@@ -76,5 +86,19 @@ test.describe('Smoke tests', () => {
     await page.goto('/nonexistent-page-xyz')
     await waitForApp(page)
     await expect(page.locator('text=404')).toBeVisible()
+    await expect(page).toHaveTitle(/Not found.*Deep Sea CTF/)
+  })
+
+  test('public and signed-out pages fit a 390px viewport', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 })
+    for (const route of ['/', '/home', '/library', '/scoreboard', '/nonexistent-page-xyz']) {
+      await page.goto(route)
+      await waitForApp(page)
+      const { scrollWidth, clientWidth } = await page.locator('html').evaluate((element) => ({
+        scrollWidth: element.scrollWidth,
+        clientWidth: element.clientWidth,
+      }))
+      expect(scrollWidth, `${route} overflows at 390px`).toBeLessThanOrEqual(clientWidth)
+    }
   })
 })

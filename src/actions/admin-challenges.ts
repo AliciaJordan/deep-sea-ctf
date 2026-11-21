@@ -48,6 +48,34 @@ export const createChallenge: ActionHandler<Env> = async ({ userId, params, tool
   return { success: true, data: { challengeId: challenge.data.recordId } }
 }
 
+export const updateChallengeFlag: ActionHandler<Env> = async ({ userId, params, tools, env }) => {
+  if (!isOwner(userId, env)) return { success: false, error: 'Forbidden.' }
+  if (!env.CTF_FLAG_HMAC_KEY) return { success: false, error: 'Flag verification is not configured.' }
+
+  const challengeId = typeof params.challengeId === 'string' ? params.challengeId.trim() : ''
+  const flag = typeof params.flag === 'string' ? params.flag.trim() : ''
+  if (!challengeId || !flag || flag.length > 512) {
+    return { success: false, error: 'Challenge and flag are required.' }
+  }
+
+  const challenge = await tools.get<Record<string, unknown>>('challenges', challengeId)
+  if (!challenge.success) return { success: false, error: 'Challenge not found.' }
+
+  const secrets = await tools.query<{ challengeId: string; flagMac: string }>(
+    'challengeSecrets', { where: { challengeId }, limit: 2 },
+  )
+  if (!secrets.success) return secrets
+  if (secrets.data.records.length !== 1) {
+    return { success: false, error: 'Challenge verification unavailable.' }
+  }
+
+  const updated = await tools.update('challengeSecrets', secrets.data.records[0].recordId, {
+    flagMac: await flagMac(flag, env.CTF_FLAG_HMAC_KEY),
+  })
+  if (!updated.success) return updated
+  return { success: true, data: { challengeId } }
+}
+
 export const adminListChallenges: ActionHandler<Env> = async ({ userId, tools, env }) => {
   if (!isOwner(userId, env)) return { success: false, error: 'Forbidden.' }
   const result = await tools.query<Record<string, unknown>>('challenges', { limit: 500 })

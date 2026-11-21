@@ -103,6 +103,30 @@ export default function Landing() {
                 ))}
               </div>
             </section>
+
+            <section className="landing-how-to" aria-labelledby="landing-how-to-title">
+              <div>
+                <p className="landing-how-to-label">FIELD GUIDE</p>
+                <h2 id="landing-how-to-title">How to play</h2>
+              </div>
+              <ol className="landing-steps">
+                <li>
+                  <span>01</span>
+                  <strong>Sign in</strong>
+                  <p>Open the board and sign in to join the crew.</p>
+                </li>
+                <li>
+                  <span>02</span>
+                  <strong>Pick a challenge</strong>
+                  <p>Choose a released signal from the board or library.</p>
+                </li>
+                <li>
+                  <span>03</span>
+                  <strong>Submit the flag</strong>
+                  <p>Enter your answer in the <code>ocean{'{'}...{'}'}</code> format.</p>
+                </li>
+              </ol>
+            </section>
           </main>
 
           <footer className="landing-footer">

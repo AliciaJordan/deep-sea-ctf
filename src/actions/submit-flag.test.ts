@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { Env } from '../../worker'
+import { flagMac } from '../lib/flag-mac'
 import { getChallenge, listChallenges, submitFlag } from './submit-flag'
 
 function randomFlag(): string {
@@ -169,5 +170,58 @@ describe('flag submission idempotency', () => {
     expect(first).toMatchObject({ success: true, data: { correct: true, alreadySolved: false } })
     expect(repeated).toMatchObject({ success: true, data: { correct: true, alreadySolved: true } })
     expect(submissions).toHaveLength(1)
+  })
+})
+
+describe('flag attempt feedback', () => {
+  it('reports remaining attempts and the lockout end after five wrong flags', async () => {
+    const key = crypto.randomUUID()
+    const flag = await flagMac(randomFlag(), key)
+    const claims: Array<{ recordId: string; data: { userId: string; challengeId: string; bucket: number; slot: number; ts: string } }> = []
+    let nextId = 0
+    const tools = {
+      get: vi.fn().mockResolvedValue({
+        success: true,
+        data: { record: { recordId: 'challenge-1', data: { ...challenge } } },
+      }),
+      query: vi.fn().mockImplementation(async (collection: string) => {
+        const records = collection === 'challengeSecrets'
+          ? [{ recordId: 'secret-1', data: { challengeId: 'challenge-1', flagMac: flag } }]
+          : collection === 'attemptClaims' ? claims : []
+        return { success: true, data: { records, count: records.length } }
+      }),
+      create: vi.fn().mockImplementation(async (collection: string, data: Record<string, unknown>) => {
+        const record = { recordId: `${collection}-${++nextId}`, data }
+        if (collection === 'attemptClaims') claims.push(record as typeof claims[number])
+        return { success: true, data: { recordId: record.recordId } }
+      }),
+      remove: vi.fn().mockResolvedValue({ success: true, data: { recordId: 'claim' } }),
+    } as unknown as Parameters<typeof submitFlag>[0]['tools']
+    const args = {
+      userId: 'player-1',
+      params: { challengeId: 'challenge-1', flag: 'ocean{incorrect}' },
+      tools,
+      env: { OWNER_USER_ID: 'owner-1', CTF_FLAG_HMAC_KEY: key } as Env,
+      callerJwt: 'player-token',
+    }
+
+    let fifthAttempt: Awaited<ReturnType<typeof submitFlag>> | undefined
+    for (let remaining = 4; remaining >= 0; remaining--) {
+      fifthAttempt = await submitFlag(args)
+      expect(fifthAttempt).toMatchObject({
+        success: true,
+        data: { correct: false, attemptsRemaining: remaining },
+      })
+    }
+    expect(fifthAttempt).toMatchObject({
+      success: true,
+      data: { correct: false, attemptsRemaining: 0, retryAt: expect.any(String) },
+    })
+
+    const blocked = await submitFlag(args)
+    expect(blocked).toMatchObject({
+      success: false,
+      error: expect.stringContaining('Try again after'),
+    })
   })
 })

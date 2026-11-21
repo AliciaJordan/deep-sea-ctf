@@ -182,7 +182,7 @@ async function cleanupReservation(
 }
 
 function contentDisposition(name: string): string {
-  const fallback = name.replace(/[^\x20-\x7e]|["\\;]/g, '_')
+  const fallback = name.replace(/[^A-Za-z0-9._ -]/g, '_').trim()
   const encoded = encodeURIComponent(name).replace(/[!'()*]/g, (char) =>
     `%${char.charCodeAt(0).toString(16).toUpperCase()}`,
   )
@@ -328,6 +328,7 @@ export function registerCommunityAttachmentRoutes(
       const headers = new Headers(response.headers)
       headers.set('Content-Type', data.contentType)
       headers.set('Content-Disposition', contentDisposition(data.originalName))
+      headers.set('Content-Security-Policy', 'sandbox')
       headers.set('X-Content-Type-Options', 'nosniff')
       headers.set('Cache-Control', 'private, no-store')
       return new Response(response.body, { status: 200, headers })

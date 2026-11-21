@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { Env } from '../../worker'
-import { createCommunityChallenge } from './community-challenges'
+import { createCommunityChallenge, deleteRejectedChallenge } from './community-challenges'
 
 function randomFlag(): string {
   return ['ocean', '{', crypto.randomUUID().replaceAll('-', ''), '}'].join('')
@@ -56,5 +56,58 @@ describe('community challenge submission', () => {
 
     expect(result).toMatchObject({ success: false, error: 'Sign in to submit a challenge.' })
     expect(create).not.toHaveBeenCalled()
+  })
+})
+
+describe('rejected community challenge deletion', () => {
+  it('lets the owner delete the challenge and its flag verifier', async () => {
+    const tools = {
+      get: vi.fn().mockResolvedValue({
+        success: true,
+        data: { record: { recordId: 'community-1', data: { reviewStatus: 'rejected' } } },
+      }),
+      query: vi.fn().mockImplementation(async (collection: string) => ({
+        success: true,
+        data: {
+          records: collection === 'challengeSecrets'
+            ? [{ recordId: 'secret-1', data: { challengeId: 'community-1' } }]
+            : [],
+        },
+      })),
+      remove: vi.fn().mockResolvedValue({ success: true, data: { recordId: 'removed' } }),
+    } as unknown as Parameters<typeof deleteRejectedChallenge>[0]['tools']
+
+    const result = await deleteRejectedChallenge({
+      userId: 'owner-1',
+      params: { challengeId: 'community-1' },
+      tools,
+      env: { OWNER_USER_ID: 'owner-1' } as Env,
+      callerJwt: 'owner-token',
+    })
+
+    expect(result).toMatchObject({ success: true, data: { challengeId: 'community-1' } })
+    expect(tools.remove).toHaveBeenNthCalledWith(1, 'challengeSecrets', 'secret-1')
+    expect(tools.remove).toHaveBeenNthCalledWith(2, 'challenges', 'community-1')
+  })
+
+  it('refuses to delete a challenge that was not rejected', async () => {
+    const tools = {
+      get: vi.fn().mockResolvedValue({
+        success: true,
+        data: { record: { recordId: 'community-1', data: { reviewStatus: 'approved' } } },
+      }),
+      remove: vi.fn(),
+    } as unknown as Parameters<typeof deleteRejectedChallenge>[0]['tools']
+
+    const result = await deleteRejectedChallenge({
+      userId: 'owner-1',
+      params: { challengeId: 'community-1' },
+      tools,
+      env: { OWNER_USER_ID: 'owner-1' } as Env,
+      callerJwt: 'owner-token',
+    })
+
+    expect(result).toMatchObject({ success: false, error: 'Rejected challenge not found.' })
+    expect(tools.remove).not.toHaveBeenCalled()
   })
 })

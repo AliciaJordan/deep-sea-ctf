@@ -42,6 +42,7 @@ export default function AdminPage() {
 function AdminPanel() {
   const [challenges, setChallenges] = useState<Challenge[]>([])
   const [form, setForm] = useState(createEmptyForm)
+  const [flagUpdate, setFlagUpdate] = useState({ challengeId: '', flag: '' })
   const [reviewPoints, setReviewPoints] = useState<Record<string, string>>({})
   const [denied, setDenied] = useState(false)
   const [error, setError] = useState('')
@@ -92,6 +93,23 @@ function AdminPanel() {
     }
   }
 
+  async function updateFlag(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setBusy(true)
+    setError('')
+    setNotice('')
+    try {
+      await callCtfAction('updateChallengeFlag', flagUpdate)
+      const challenge = challenges.find((item) => item.challengeId === flagUpdate.challengeId)
+      setFlagUpdate({ challengeId: flagUpdate.challengeId, flag: '' })
+      setNotice(`${challenge?.title ?? 'CHALLENGE'} FLAG UPDATED.`)
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Unable to update challenge flag.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
   async function review(challenge: Challenge, decision: 'approve' | 'reject') {
     setBusy(true)
     setError('')
@@ -106,6 +124,22 @@ function AdminPanel() {
       await reload()
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Unable to review challenge.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function deleteRejected(challenge: Challenge) {
+    if (!window.confirm(`Permanently delete rejected challenge "${challenge.title}" and its files?`)) return
+    setBusy(true)
+    setError('')
+    setNotice('')
+    try {
+      await callCtfAction('deleteRejectedChallenge', { challengeId: challenge.challengeId })
+      setNotice(`${challenge.title} DELETED.`)
+      await reload()
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Unable to delete rejected challenge.')
     } finally {
       setBusy(false)
     }
@@ -205,6 +239,14 @@ function AdminPanel() {
       <label className="admin-check"><input type="checkbox" checked={form.published} onChange={(e) => setForm({ ...form, published: e.target.checked })} /> Published</label>
       <button type="submit" disabled={busy}>{busy ? 'SAVING' : 'CREATE CHALLENGE'}</button>
     </form>
+    <form className="admin-form" onSubmit={updateFlag}>
+      <label>Challenge<select required value={flagUpdate.challengeId} onChange={(e) => setFlagUpdate({ ...flagUpdate, challengeId: e.target.value })}>
+        <option value="" disabled>Select a challenge</option>
+        {challenges.map((challenge) => <option key={challenge.challengeId} value={challenge.challengeId}>{challenge.title}</option>)}
+      </select></label>
+      <label>New flag (write only)<input required type="password" autoComplete="new-password" maxLength={512} value={flagUpdate.flag} onChange={(e) => setFlagUpdate({ ...flagUpdate, flag: e.target.value })} /></label>
+      <button type="submit" disabled={busy || !challenges.length}>{busy ? 'SAVING' : 'UPDATE CHALLENGE FLAG'}</button>
+    </form>
     <section aria-label="All challenges">
       <h2 className="ctf-label ctf-section-title">ALL CONTACTS</h2>
       <div className="ctf-table">
@@ -215,6 +257,8 @@ function AdminPanel() {
             {challenge.points} / {challenge.reviewStatus?.toUpperCase() ?? (challenge.published ? 'PUBLISHED' : 'DRAFT')}
             {challenge.reviewStatus !== 'pending' && challenge.reviewStatus !== 'rejected' &&
               <button type="button" onClick={() => void publish(challenge)}>{challenge.published ? 'UNPUBLISH' : 'PUBLISH'}</button>}
+            {challenge.reviewStatus === 'rejected' &&
+              <button type="button" disabled={busy} onClick={() => void deleteRejected(challenge)}>DELETE REJECTED</button>}
           </span>
         </div>)}
         {!challenges.length && <p className="ctf-empty">NO CONTACTS YET</p>}

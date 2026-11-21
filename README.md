@@ -1,20 +1,28 @@
 # Deep Sea CTF
 
-Deep Sea CTF is a live, community-driven capture-the-flag game. Players explore cybersecurity challenges arranged by ocean depth, submit flags, and follow solves on a real-time scoreboard. Signed-in players can also submit their own challenges for owner review.
+Deep Sea CTF is a community-driven capture-the-flag game where players solve cybersecurity challenges arranged by ocean depth and track solves on a live scoreboard.
 
-**Play:** [deep-sea-ctf.app.space](https://deep-sea-ctf.app.space)
+**Live:** [deep-sea-ctf.app.space](https://deep-sea-ctf.app.space)
 
-## How to play
+## Try it
 
-1. Sign in to dive, then open the [challenge board](https://deep-sea-ctf.app.space/home) or [challenge library](https://deep-sea-ctf.app.space/library). The library can be searched by title, category, and description, and filtered by category or depth.
-2. Select a released challenge to read its description and any linked files.
-3. Solve it and submit the challenge's required flag.
-4. Correct submissions add the challenge's points to your score. The board and [scoreboard](https://deep-sea-ctf.app.space/scoreboard) update as solves are recorded.
-5. After solving a community challenge, you can read its solution write-up on the challenge page.
+1. Sign in to join the crew.
+2. Open the [challenge board](https://deep-sea-ctf.app.space/home) or [challenge library](https://deep-sea-ctf.app.space/library).
+3. Pick a released challenge and inspect its clues and files.
+4. Submit the flag in the format requested by the challenge (for example, `ocean{...}`).
+5. Earn points for correct solves and follow the live [scoreboard](https://deep-sea-ctf.app.space/scoreboard).
+
+## Design decisions
+
+- **HMAC flags:** Expected flags are stored as keyed HMAC verifiers and checked server-side; plaintext flags and verifiers are not sent to players.
+- **Rate limit:** Each player gets five attempts per challenge in a rolling 60-second window.
+- **Owner review:** Community challenges stay private until the app owner approves them.
+- **Uploads:** Up to three attachments per challenge, 2 MB each, limited to PNG, JPG, WAV, TXT, CSV, or LOG with content checks. Downloads require sign-in and use attachment, `nosniff`, and CSP sandbox headers.
+- **No malware scanner:** No scanner is configured, and file type checks cannot prove a file is safe. Attachments are not previewed; treat them as untrusted and open them in a VM or sandbox.
+
+## More details
 
 Challenges are organized into four depth bands: **10 m**, **200 m**, **1,000 m**, and **4,000 m**. The home board has a sonar view and a list view; use **Reactivate Sonar** to check for newly released challenges.
-
-Each player can submit up to five flag attempts per challenge in a rolling 60-second window. Challenge authors cannot score points on their own challenges.
 
 ## Create a challenge
 
@@ -22,7 +30,7 @@ Sign in and open [Create a Challenge](https://deep-sea-ctf.app.space/submit-chal
 
 The app owner reviews submissions in the [Admin page](https://deep-sea-ctf.app.space/admin), can inspect the write-up and download attachments, and approves with a point value or rejects the submission. Approved challenges and their attachments become available to signed-in players. Authors can see their submission status and add files while a challenge is pending. Write-ups remain private to the author and owner until approval, then become available to players after they solve the challenge.
 
-Attachments are stored in DeepSpace app-scoped R2 storage with random keys. The Worker checks file extensions and contents, limits uploads to five per user per minute, and serves files only as authenticated downloads with `Content-Disposition: attachment` and `nosniff`. Files are not previewed in the app. **Files are submitted by other players. Open them in a VM or sandbox.**
+Attachments are stored in DeepSpace app-scoped R2 storage with random keys. The Worker checks file extensions and contents, limits uploads to five per user per minute, and serves files only as authenticated downloads with `Content-Disposition: attachment`, `nosniff`, and CSP sandbox headers. Files are not previewed in the app. **Files are submitted by other players. Open them in a VM or sandbox.**
 
 ## Pages
 

@@ -11,8 +11,8 @@ export default function ScoreboardPage() {
 }
 
 function SignedInScoreboard() {
-  const { records: solves } = useQuery<Solve>('solves', { orderBy: 'solvedAt', orderDir: 'asc' })
+  const { records: solves, status, error } = useQuery<Solve>('solves', { orderBy: 'solvedAt', orderDir: 'asc' })
   const { users } = useUsers()
   const scores = useMemo(() => [...tallySolves(solves).totals].sort((a, b) => b[1] - a[1]), [solves])
-  return <main className="ctf-shell scoreboard-page"><h1>Scoreboard</h1><ScoreboardTable scores={scores} users={users} /></main>
+  return <main className="ctf-shell scoreboard-page"><h1>Scoreboard</h1><ScoreboardTable scores={scores} users={users} status={status} error={error} /></main>
 }

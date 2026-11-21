@@ -206,7 +206,7 @@ describe('community attachment routes', () => {
       challenge: { published: true, releaseAt: new Date().toISOString() },
       attachment: {
         challengeId: 'challenge-1', uploadedBy: 'submitter', key: 'private-file',
-        originalName: 'signal.txt', contentType: 'text/plain; charset=utf-8', ready: true,
+        originalName: 'signal<script>.txt', contentType: 'text/plain; charset=utf-8', ready: true,
       },
     })
 
@@ -217,7 +217,12 @@ describe('community attachment routes', () => {
     )
 
     expect(response.status).toBe(200)
-    expect(response.headers.get('content-disposition')).toContain('attachment;')
+    const disposition = response.headers.get('content-disposition') ?? ''
+    expect(disposition).toContain('attachment;')
+    expect(disposition).toContain('filename="signal_script_.txt"')
+    expect(disposition).toContain("filename*=UTF-8''signal%3Cscript%3E.txt")
+    expect(disposition).not.toContain('<script>')
+    expect(response.headers.get('content-security-policy')).toBe('sandbox')
     expect(response.headers.get('x-content-type-options')).toBe('nosniff')
   })
 })

@@ -83,8 +83,8 @@ function ChallengeLibrary() {
       </label>
       <Link className="library-create-link" to="/submit-challenge">CREATE A CHALLENGE</Link>
     </div>
-    {error && <p className="ctf-status" role="alert">{error}</p>}
-    {loading ? <div className="ctf-loading"><DepthRing state="loading" /><span className="ctf-label">SCANNING RELEASED CHALLENGES</span></div>
+    {loading ? <div className="ctf-loading" role="status"><DepthRing state="loading" /><span className="ctf-label">SCANNING RELEASED CHALLENGES</span></div>
+      : error ? <p className="ctf-status" role="alert">{error}</p>
       : filtered.length ? <section className="library-results" aria-label="Challenge search results">
         <p className="ctf-label">{filtered.length} SIGNAL{filtered.length === 1 ? '' : 'S'} FOUND</p>
         {filtered.map((challenge) => <Link
@@ -99,6 +99,6 @@ function ChallengeLibrary() {
           <h2>{challenge.title}</h2>
           <p>{challenge.description}</p>
         </Link>)}
-      </section> : <p className="ctf-empty">{challenges.length ? 'NO SIGNALS MATCH YOUR SEARCH' : 'NO RELEASED CHALLENGES YET'}</p>}
+      </section> : <p className="ctf-empty" role="status">{challenges.length ? 'NO SIGNALS MATCH YOUR SEARCH' : 'NO RELEASED CHALLENGES YET'}</p>}
   </main>
 }

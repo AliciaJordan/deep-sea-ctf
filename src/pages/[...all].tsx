@@ -3,17 +3,13 @@ import { APP_NAME } from '../constants'
 
 export default function NotFound() {
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center text-center px-4">
+    <main className="ctf-shell not-found-page" aria-labelledby="not-found-heading">
       <title>{`Not found · ${APP_NAME}`}</title>
       <meta name="robots" content="noindex" />
-      <h1 className="text-4xl font-bold text-foreground mb-2">404</h1>
-      <p className="text-muted-foreground mb-6">Page not found</p>
-      <Link
-        to="/home"
-        className="rounded-full bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 transition-opacity"
-      >
-        Go home
-      </Link>
-    </div>
+      <p className="ctf-label">SIGNAL LOST / 404</p>
+      <h1 id="not-found-heading" className="not-found-heading">Page not found</h1>
+      <p className="ctf-subtitle">This signal does not match a page in the Deep Sea CTF.</p>
+      <Link className="ctf-back" to="/home">RETURN TO THE BOARD</Link>
+    </main>
   )
 }
