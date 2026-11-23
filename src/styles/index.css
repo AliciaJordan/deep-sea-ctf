@@ -347,6 +347,20 @@ nav[data-testid="app-navigation"] :focus-visible, .ctf-form :focus-visible, .ctf
 .library-card p { margin: 0; color: #D8E7F0; font-size: .82rem; line-height: 1.7; white-space: pre-wrap; }
 .library-results + .ctf-empty { margin-top: 20px; }
 .community-submissions { margin-top: 36px; }
+.attachment-picker { display: grid; gap: 8px; min-width: 0; }
+.visually-hidden-file { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; clip-path: inset(50%); }
+.admin-form .attachment-add-button { width: fit-content; text-transform: uppercase; cursor: pointer; }
+.attachment-file-list, .attachment-results { min-width: 0; margin: 0; padding-left: 20px; overflow-wrap: anywhere; font: .68rem/1.6 'IBM Plex Mono', monospace; letter-spacing: normal; text-transform: none; }
+.attachment-results { color: #7FE3C4; }
+.attachment-results li:has(+ li) { margin-bottom: 3px; }
+.community-submissions .ctf-row { grid-template-columns: minmax(44px, 70px) minmax(0, 1fr) minmax(0, 1fr); }
+.community-submissions .ctf-row > span:last-child { min-width: 0; overflow-wrap: anywhere; }
+.community-submissions .ctf-row button { margin: 6px 0 0; }
+.community-submissions .attachment-results, .community-submissions .attachment-file-list { grid-column: 1 / -1; }
+@media (max-width: 767px) {
+  .community-submissions .ctf-row { grid-template-columns: 36px minmax(0, 1fr); }
+  .community-submissions .ctf-row > span:last-child { grid-column: 1 / -1; }
+}
 .challenge-heading-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 10px; }
 .challenge-heading-row .ctf-section-title { margin: 0; }
 .challenge-heading-actions { display: flex; align-items: center; gap: 8px; }

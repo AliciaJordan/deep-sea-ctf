@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { CHALLENGE_CATEGORIES } from '../../../constants'
 import { callCtfAction, uploadChallengeAttachment } from '../../../lib/ctf-actions'
-import { MAX_CHALLENGE_ATTACHMENTS, type PublicChallengeAttachment } from '../../../lib/community-attachments'
+import { formatAttachmentUploadResult, formatFileSize } from '../../../lib/attachment-upload-feedback'
+import { MAX_CHALLENGE_ATTACHMENTS, validateAttachment, type PublicChallengeAttachment } from '../../../lib/community-attachments'
 import { DepthGauge } from '../../../components/DepthRing'
 
 type Submission = {
@@ -31,6 +32,12 @@ const reviewLabel: Record<Submission['reviewStatus'], string> = {
 export default function SubmitChallengePage() {
   const [form, setForm] = useState(emptyForm)
   const [selectedFiles, setSelectedFiles] = useState<File[]>([])
+  const [submissionFiles, setSubmissionFiles] = useState<Record<string, File[]>>({})
+  const [uploadResults, setUploadResults] = useState<Record<string, string[]>>({})
+  const [formUploadResults, setFormUploadResults] = useState<string[]>([])
+  const fileInput = useRef<HTMLInputElement>(null)
+  const listFileInput = useRef<HTMLInputElement>(null)
+  const activeSubmission = useRef<string | null>(null)
   const [submissions, setSubmissions] = useState<Submission[]>([])
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
@@ -52,22 +59,41 @@ export default function SubmitChallengePage() {
     setBusy(true)
     setError('')
     setNotice('')
+    setFormUploadResults([])
     try {
+      const files = selectedFiles
+      const validationResults: string[] = []
+      for (const file of files) {
+        try {
+          const validation = await validateAttachment(file)
+          if (!validation.success) {
+            validationResults.push(formatAttachmentUploadResult(file, new Error(validation.error)))
+          }
+        } catch (reason) {
+          validationResults.push(formatAttachmentUploadResult(file, reason))
+        }
+      }
+      if (validationResults.length) {
+        setFormUploadResults(validationResults)
+        return
+      }
+
       const { challengeId } = await callCtfAction<{ challengeId: string }>('createCommunityChallenge', {
         ...form,
         difficulty: Number(form.difficulty),
       })
       setForm(emptyForm)
-      const files = selectedFiles
       setSelectedFiles([])
       setNotice('CHALLENGE RECEIVED / UNDER REVIEW')
+      const results: string[] = []
       for (const file of files) {
         try {
           await uploadChallengeAttachment(challengeId, file)
+          results.push(formatAttachmentUploadResult(file))
         } catch (reason) {
-          setError(reason instanceof Error ? reason.message : `Could not upload ${file.name}.`)
-          break
+          results.push(formatAttachmentUploadResult(file, reason))
         }
+        setFormUploadResults([...results])
       }
       await reload()
     } catch (reason) {
@@ -85,17 +111,39 @@ export default function SubmitChallengePage() {
       return
     }
     setBusy(true)
-    setError('')
-    setNotice('')
+    setUploadResults((current) => ({ ...current, [submission.challengeId]: [] }))
+    const results: string[] = []
     try {
-      for (const file of files) await uploadChallengeAttachment(submission.challengeId, file)
-      setNotice('FILES ADDED / UNDER REVIEW')
-      await reload()
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Unable to upload attachments.')
+      for (const file of files) {
+        try {
+          await uploadChallengeAttachment(submission.challengeId, file)
+          results.push(formatAttachmentUploadResult(file))
+        } catch (reason) {
+          results.push(formatAttachmentUploadResult(file, reason))
+        }
+        setUploadResults((current) => ({ ...current, [submission.challengeId]: [...results] }))
+      }
+      setSubmissionFiles((current) => ({ ...current, [submission.challengeId]: [] }))
       await reload()
     } finally {
       setBusy(false)
+    }
+  }
+
+  function chooseFiles(event: React.ChangeEvent<HTMLInputElement>, submissionId?: string) {
+    const files = Array.from(event.currentTarget.files ?? [])
+    event.currentTarget.value = ''
+    if (submissionId) {
+      const submission = submissions.find((item) => item.challengeId === submissionId)
+      if (!submission) return
+      const remaining = MAX_CHALLENGE_ATTACHMENTS - submission.attachments.length
+      setSubmissionFiles((current) => ({
+        ...current,
+        [submissionId]: files.slice(0, Math.max(0, remaining)),
+      }))
+    } else {
+      setSelectedFiles(files.slice(0, MAX_CHALLENGE_ATTACHMENTS))
+      setFormUploadResults([])
     }
   }
 
@@ -119,22 +167,19 @@ export default function SubmitChallengePage() {
       <label className="admin-form-wide">Challenge description<textarea required maxLength={4000} value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} /></label>
       <label>Flag<input required type="password" autoComplete="new-password" maxLength={512} value={form.flag} onChange={(event) => setForm({ ...form, flag: event.target.value })} /><small>Use the required flag format with no spaces.</small></label>
       <label className="admin-form-wide">Solution write-up<textarea required maxLength={8000} value={form.writeup} onChange={(event) => setForm({ ...form, writeup: event.target.value })} /><small>Only you and the reviewer can see this before approval. Players see it after solving.</small></label>
-      <label className="admin-form-wide">Challenge files<input
-        type="file"
+      <div className="admin-form-wide attachment-picker">
+        <span>Challenge files</span>
+        <input ref={fileInput} className="visually-hidden-file" type="file"
         multiple
         accept=".png,.jpg,.wav,.txt,.csv,.log"
         disabled={busy}
-        onChange={(event) => {
-          const files = Array.from(event.currentTarget.files ?? [])
-          event.currentTarget.value = ''
-          if (files.length > MAX_CHALLENGE_ATTACHMENTS) {
-            setError('Choose no more than 3 files.')
-          } else {
-            setError('')
-          }
-          setSelectedFiles(files.slice(0, MAX_CHALLENGE_ATTACHMENTS))
-        }}
-      /><small>Up to 3 files, 2 MB each. PNG, JPG, WAV, TXT, CSV, or LOG.</small></label>
+        onChange={(event) => chooseFiles(event)}
+        />
+        <button type="button" className="attachment-add-button" disabled={busy || selectedFiles.length >= MAX_CHALLENGE_ATTACHMENTS} onClick={() => fileInput.current?.click()}>Add files</button>
+        <small>Up to 3 files, 2 MB each. PNG, JPG, WAV, TXT, CSV, or LOG.</small>
+        <ul className="attachment-file-list">{selectedFiles.map((file, index) => <li key={`${file.name}-${index}`}>{file.name} ({formatFileSize(file.size)})</li>)}</ul>
+        <ul className="attachment-results" aria-live="polite">{formUploadResults.map((result, index) => <li key={`${index}-${result}`}>{result}</li>)}</ul>
+      </div>
       <button type="submit" disabled={busy}>{busy ? 'SUBMITTING' : 'SUBMIT FOR REVIEW'}</button>
     </form>
     <section className="community-submissions" aria-labelledby="submissions-heading">
@@ -145,19 +190,15 @@ export default function SubmitChallengePage() {
           <span>{submission.title}<small>{reviewLabel[submission.reviewStatus] ?? 'UNDER REVIEW'}</small></span>
           <span>
             {submission.reviewStatus === 'approved' && <Link to={`/challenges/${encodeURIComponent(submission.challengeId)}`}>OPEN</Link>}
-            {submission.reviewStatus === 'pending' && submission.attachments.length < MAX_CHALLENGE_ATTACHMENTS && <label>
-              ADD FILES<input
-                type="file"
-                multiple
-                accept=".png,.jpg,.wav,.txt,.csv,.log"
-                disabled={busy}
-                onChange={(event) => {
-                  const files = Array.from(event.currentTarget.files ?? [])
-                  event.currentTarget.value = ''
-                  void addAttachments(submission, files)
-                }}
-              />
-            </label>}
+            {submission.reviewStatus === 'pending' && <>
+              <button type="button" className="attachment-add-button" disabled={busy || submission.attachments.length >= MAX_CHALLENGE_ATTACHMENTS} onClick={() => { activeSubmission.current = submission.challengeId; listFileInput.current?.click() }}>Add files</button>
+              <input ref={listFileInput} className="visually-hidden-file" type="file" multiple accept=".png,.jpg,.wav,.txt,.csv,.log" disabled={busy} onChange={(event) => chooseFiles(event, activeSubmission.current ?? undefined)} />
+              {(submissionFiles[submission.challengeId] ?? []).length > 0 && <>
+                <ul className="attachment-file-list">{(submissionFiles[submission.challengeId] ?? []).map((file, index) => <li key={`${file.name}-${index}`}>{file.name} ({formatFileSize(file.size)})</li>)}</ul>
+                <button type="button" disabled={busy} onClick={() => void addAttachments(submission, submissionFiles[submission.challengeId] ?? [])}>Upload selected</button>
+              </>}
+              <ul className="attachment-results" aria-live="polite">{(uploadResults[submission.challengeId] ?? []).map((result, index) => <li key={`${index}-${result}`}>{result}</li>)}</ul>
+            </>}
             <small>{submission.attachments.length}/{MAX_CHALLENGE_ATTACHMENTS} FILES</small>
           </span>
         </div>)}
